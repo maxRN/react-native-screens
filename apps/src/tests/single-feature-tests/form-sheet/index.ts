@@ -10,7 +10,7 @@ import TestFormSheetGrabberVisible from './test-form-sheet-grabber-visible';
 import TestFormSheetInitialDetentIndex from './test-form-sheet-initial-detent-index-ios';
 import TestFormSheetLargestUndimmedDetentIndex from './test-form-sheet-largest-undimmed-detent-index-ios';
 import TestFormSheetLifecycleEvents from './test-form-sheet-lifecycle-events-ios';
-import TestFormSheetNativeContainerStyle from './test-form-sheet-native-container-style-ios';
+import TestFormSheetNativeContainerStyle from './test-form-sheet-native-container-style';
 import TestFormSheetOnDetentChanged from './test-form-sheet-on-detent-changed-ios';
 import TestFormSheetPreferredCornerRadius from './test-form-sheet-preferred-corner-radius';
 import TestFormSheetPresentationState from './test-form-sheet-presentation-state';
@@ -27,7 +27,7 @@ export { default as TestFormSheetGrabberVisible } from './test-form-sheet-grabbe
 export { default as TestFormSheetInitialDetentIndex } from './test-form-sheet-initial-detent-index-ios';
 export { default as TestFormSheetLargestUndimmedDetentIndex } from './test-form-sheet-largest-undimmed-detent-index-ios';
 export { default as TestFormSheetLifecycleEvents } from './test-form-sheet-lifecycle-events-ios';
-export { default as TestFormSheetNativeContainerStyle } from './test-form-sheet-native-container-style-ios';
+export { default as TestFormSheetNativeContainerStyle } from './test-form-sheet-native-container-style';
 export { default as TestFormSheetOnDetentChanged } from './test-form-sheet-on-detent-changed-ios';
 export { default as TestFormSheetPreferredCornerRadius } from './test-form-sheet-preferred-corner-radius';
 export { default as TestFormSheetPresentationState } from './test-form-sheet-presentation-state';
