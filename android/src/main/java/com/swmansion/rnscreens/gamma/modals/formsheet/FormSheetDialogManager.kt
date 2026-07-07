@@ -37,6 +37,11 @@ class FormSheetDialogManager(
 
     private val dimmingManager = DimmingViewManager(context, dialog)
 
+    private val appearanceCoordinator =
+        FormSheetAppearanceCoordinator(
+            bottomSheetView = bottomSheetView,
+        )
+
     private val dimensionsCoordinator =
         FormSheetDimensionsCoordinator(
             dialog = dialog,
@@ -58,6 +63,7 @@ class FormSheetDialogManager(
 
     init {
         presentationManager.setup()
+        appearanceCoordinator.setup()
         dimensionsCoordinator.setup()
     }
 
@@ -76,6 +82,10 @@ class FormSheetDialogManager(
 
         if (oldConfig.prefersGrabberVisible != newConfig.prefersGrabberVisible) {
             container.setGrabberVisible(newConfig.prefersGrabberVisible)
+        }
+
+        if (oldConfig.preferredCornerRadius != newConfig.preferredCornerRadius) {
+            appearanceCoordinator.updateCornerRadius(newConfig.preferredCornerRadius)
         }
 
         if (oldConfig.isOpen != newConfig.isOpen) {

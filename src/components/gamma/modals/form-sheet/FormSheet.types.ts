@@ -27,7 +27,7 @@ export interface FormSheetProps {
    * from `false` to `true` triggers the sheet to present, while changing
    * it from `true` to `false` triggers a programmatic dismissal.
    *
-   * @platform ios
+   * @platform android, ios
    */
   isOpen: boolean;
 
@@ -47,7 +47,7 @@ export interface FormSheetProps {
    * @remarks
    * `fitToContents` is supported on iOS 16+. On iOS 15, it falls back to a medium detent
    *
-   * @platform ios
+   * @platform android, ios
    */
   detents?: number[] | 'fitToContents' | undefined;
 
@@ -59,7 +59,7 @@ export interface FormSheetProps {
    * hide the grabber in some presentation contexts.
    *
    * @default false
-   * @platform ios
+   * @platform android, ios
    */
   prefersGrabberVisible?: boolean | undefined;
 
@@ -69,8 +69,13 @@ export interface FormSheetProps {
    * If set to `systemDefault` or a negative number, it defaults to the system's
    * automatic dimension (`UISheetPresentationControllerAutomaticDimension`).
    *
+   * @remarks
+   * On Android, non-uniform rounded-corner clipping is only applied on API level 33+.
+   * On older versions this prop is ignored, because clipping the sheet content to non-uniform
+   * rounded corners is not reliable on those versions.
+   *
    * @default systemDefault
-   * @platform ios
+   * @platform android, ios
    */
   preferredCornerRadius?: number | 'systemDefault' | undefined;
 
@@ -187,7 +192,7 @@ export interface FormSheetProps {
    * It is highly recommended to use this callback to synchronize
    * your local React state to prevent UI mismatches (e.g., updating `isOpen` back to `false`).
    *
-   * @platform ios
+   * @platform android, ios
    */
   onNativeDismiss?: FormSheetEventHandler<EmptyEventPayload> | undefined;
 

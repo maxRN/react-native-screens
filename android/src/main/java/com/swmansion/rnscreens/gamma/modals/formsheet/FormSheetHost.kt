@@ -21,6 +21,8 @@ class FormSheetHost(
 
     internal var prefersGrabberVisible = false
 
+    internal var preferredCornerRadius = -1f
+
     internal var detents: List<Double> = emptyList()
 
     private val sheetContentView =
@@ -90,6 +92,7 @@ class FormSheetHost(
                 isOpen = this.isOpen,
                 detents = this.detents,
                 prefersGrabberVisible = this.prefersGrabberVisible,
+                preferredCornerRadius = this.preferredCornerRadius,
             )
         dialogManager.applyConfig(config)
     }
