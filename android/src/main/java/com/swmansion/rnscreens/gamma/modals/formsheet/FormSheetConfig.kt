@@ -5,4 +5,5 @@ internal data class FormSheetConfig(
     val detents: List<Double> = emptyList(),
     val prefersGrabberVisible: Boolean = false,
     val preferredCornerRadius: Float = -1f,
+    val nativeContainerBackgroundColor: Int? = null,
 )

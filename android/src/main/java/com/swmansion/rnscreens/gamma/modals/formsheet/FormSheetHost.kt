@@ -23,6 +23,8 @@ class FormSheetHost(
 
     internal var preferredCornerRadius = -1f
 
+    internal var nativeContainerBackgroundColor: Int? = null
+
     internal var detents: List<Double> = emptyList()
 
     private val sheetContentView =
@@ -93,6 +95,7 @@ class FormSheetHost(
                 detents = this.detents,
                 prefersGrabberVisible = this.prefersGrabberVisible,
                 preferredCornerRadius = this.preferredCornerRadius,
+                nativeContainerBackgroundColor = this.nativeContainerBackgroundColor,
             )
         dialogManager.applyConfig(config)
     }
