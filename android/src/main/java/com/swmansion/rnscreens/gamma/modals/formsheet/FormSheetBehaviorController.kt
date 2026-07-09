@@ -8,6 +8,10 @@ internal class FormSheetBehaviorController(
 ) {
     private val behavior = BottomSheetBehavior.from(sheetView)
 
+    init {
+        behavior.isHideable = true
+    }
+
     /**
      * @param detents - parsed detents configuration.
      * @param sheetAvailableSpace - the full window height that detent fractions are measured against.
