@@ -50,6 +50,7 @@ export interface NativeProps extends ViewProps {
     transparent?: CT.WithDefault<boolean, false>;
     backButtonHidden?: CT.WithDefault<boolean, false>;
     type?: CT.WithDefault<StackHeaderTypeAndroid, 'small'>;
+    headerBackgroundColor?: ColorValue | undefined;
     backButtonTintColorNormal?: ColorValue | undefined;
     backButtonTintColorPressed?: ColorValue | undefined;
     backButtonTintColorFocused?: ColorValue | undefined;

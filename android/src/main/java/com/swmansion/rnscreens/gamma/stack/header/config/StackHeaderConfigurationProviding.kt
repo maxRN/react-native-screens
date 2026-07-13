@@ -9,6 +9,7 @@ internal interface StackHeaderConfigurationProviding {
     val title: String
     val hidden: Boolean
     val transparent: Boolean
+    val headerBackgroundColor: Int?
     val backButtonHidden: Boolean
     val backButtonTintColorNormal: Int?
     val backButtonTintColorPressed: Int?

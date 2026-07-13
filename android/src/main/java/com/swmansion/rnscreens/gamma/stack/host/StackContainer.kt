@@ -152,7 +152,7 @@ internal class StackContainer(
             val fragment =
                 checkNotNull(stackModel.find { it.stackScreen === operation.screen }) {
                     "[RNScreens] Unable to find a fragment to pop"
-            }
+                }
 
             if (stackModel.size == 1) {
                 // Root replacements arrive as a pop and a push in the same Fabric batch. Keep the

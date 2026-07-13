@@ -79,6 +79,14 @@ internal class StackHeaderApplicator(
     ) {
         val toolbar = appBar.toolbar
 
+        config.headerBackgroundColor?.let { color ->
+            appBar.setBackgroundColor(color)
+            toolbar.setBackgroundColor(color)
+            if (appBar is StackHeaderAppBarLayout.Collapsing) {
+                appBar.collapsingToolbarLayout.setBackgroundColor(color)
+            }
+        }
+
         // Toolbar measures children in insertion order. Leading and trailing go first so the
         // title/center gets the remaining space.
         config.leadingSubview?.let {

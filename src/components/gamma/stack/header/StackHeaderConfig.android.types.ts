@@ -452,6 +452,12 @@ export interface StackHeaderConfigPropsAndroid {
    */
   type?: StackHeaderTypeAndroid | undefined;
   /**
+   * @summary Solid color rendered behind the header content.
+   *
+   * @platform android
+   */
+  headerBackgroundColor?: ColorValue | undefined;
+  /**
    * @summary Custom view rendered behind the header content.
    *
    * @platform android

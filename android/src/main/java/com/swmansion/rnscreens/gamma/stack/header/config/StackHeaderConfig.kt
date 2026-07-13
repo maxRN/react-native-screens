@@ -89,6 +89,11 @@ internal class StackHeaderConfig(
     }
         internal set
 
+    override var headerBackgroundColor: Int? by Delegates.observable(null) { _, old, new ->
+        if (old != new) invalidate(StackHeaderInvalidationFlags.STRUCTURE)
+    }
+        internal set
+
     override var backButtonHidden: Boolean by Delegates.observable(false) { _, old, new ->
         if (old != new) invalidate(StackHeaderInvalidationFlags.BACK_BUTTON)
     }

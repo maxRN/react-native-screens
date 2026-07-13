@@ -139,6 +139,13 @@ internal open class StackHeaderConfigViewManager :
         view.transparent = value
     }
 
+    override fun setHeaderBackgroundColor(
+        view: StackHeaderConfig,
+        value: Int?,
+    ) {
+        view.headerBackgroundColor = value
+    }
+
     override fun setBackButtonHidden(
         view: StackHeaderConfig,
         value: Boolean,

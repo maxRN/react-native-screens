@@ -89,6 +89,7 @@ export interface NativeProps extends ViewProps {
 
   // Android-specific props
   type?: CT.WithDefault<StackHeaderTypeAndroid, 'small'>;
+  headerBackgroundColor?: ColorValue | undefined;
 
   backButtonTintColorNormal?: ColorValue | undefined;
   backButtonTintColorPressed?: ColorValue | undefined;
