@@ -125,16 +125,15 @@ internal class StackHeaderApplicator(
         val backgroundSubview = config.backgroundSubview ?: return
 
         if (appBar is StackHeaderAppBarLayout.Small) {
-            backgroundSubview.view.detachFromCurrentParent()
-            val wrapper =
-                FrameLayout(appBar.context).apply {
-                    addView(backgroundSubview.view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-                }
-            appBar.toolbar.addView(
-                wrapper,
-                0,
-                Toolbar.LayoutParams(MATCH_PARENT, MATCH_PARENT),
-            )
+            // A React-managed background subview is measured against the screen by Fabric.
+            // Reparenting it into a small Toolbar therefore lets it draw over the scene even
+            // when the Toolbar itself is correctly constrained. Small headers only need the
+            // rendered background drawable, so copy that drawable onto the Toolbar and leave
+            // the React view attached to HeaderConfig for subsequent prop updates.
+            backgroundSubview.view.background?.let { background ->
+                appBar.toolbar.background =
+                    background.constantState?.newDrawable()?.mutate() ?: background
+            }
             return
         }
 
