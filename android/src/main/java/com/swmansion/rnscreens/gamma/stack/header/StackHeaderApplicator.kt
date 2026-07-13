@@ -124,6 +124,16 @@ internal class StackHeaderApplicator(
     ) {
         val backgroundSubview = config.backgroundSubview ?: return
 
+        if (appBar is StackHeaderAppBarLayout.Small) {
+            backgroundSubview.view.detachFromCurrentParent()
+            appBar.addView(
+                backgroundSubview.view,
+                0,
+                AppBarLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
+            )
+            return
+        }
+
         if (appBar !is StackHeaderAppBarLayout.Collapsing) {
             Log.e(TAG, "[RNScreens] Background subview is supported only for collapsing header types (medium, large).")
             return
