@@ -126,8 +126,12 @@ internal class StackHeaderApplicator(
 
         if (appBar is StackHeaderAppBarLayout.Small) {
             backgroundSubview.view.detachFromCurrentParent()
+            val wrapper =
+                FrameLayout(appBar.context).apply {
+                    addView(backgroundSubview.view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                }
             appBar.toolbar.addView(
-                backgroundSubview.view,
+                wrapper,
                 0,
                 Toolbar.LayoutParams(MATCH_PARENT, MATCH_PARENT),
             )
