@@ -126,10 +126,10 @@ internal class StackHeaderApplicator(
 
         if (appBar is StackHeaderAppBarLayout.Small) {
             backgroundSubview.view.detachFromCurrentParent()
-            appBar.addView(
+            appBar.toolbar.addView(
                 backgroundSubview.view,
                 0,
-                AppBarLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
+                Toolbar.LayoutParams(MATCH_PARENT, MATCH_PARENT),
             )
             return
         }
