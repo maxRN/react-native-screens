@@ -41,6 +41,18 @@ internal class FragmentOperationExecutor {
         )
     }
 
+    internal fun executeReplaceRootOp(
+        fragmentManager: FragmentManager,
+        op: ReplaceRootOp,
+    ) {
+        fragmentManager.createTransactionWithReordering().let { tx ->
+            tx.remove(op.oldFragment)
+            tx.add(op.containerViewId, op.newFragment)
+            tx.setPrimaryNavigationFragment(op.newFragment)
+            commitTransaction(tx, allowStateLoss = true)
+        }
+    }
+
     internal fun executeRemoveOp(
         fragmentManager: FragmentManager,
         op: RemoveOp,

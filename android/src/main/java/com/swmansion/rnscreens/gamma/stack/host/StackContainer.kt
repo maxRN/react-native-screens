@@ -146,24 +146,43 @@ internal class StackContainer(
             )
         }
 
+        var replacementPushOperation: PushOperation? = null
+
         pendingPopOperations.forEach { operation ->
             val fragment =
                 checkNotNull(stackModel.find { it.stackScreen === operation.screen }) {
                     "[RNScreens] Unable to find a fragment to pop"
-                }
-
-            check(stackModel.size > 1) {
-                "[RNScreens] Attempt to pop last screen from the stack"
             }
 
-            fragmentOps.add(PopBackStackOp(fragment))
+            if (stackModel.size == 1) {
+                // Root replacements arrive as a pop and a push in the same Fabric batch. Keep the
+                // native stack non-empty by applying both sides in one fragment transaction.
+                val replacementOperation =
+                    checkNotNull(pendingPushOperations.firstOrNull()) {
+                        "[RNScreens] Attempt to pop last screen from the stack"
+                    }
+                val replacementFragment =
+                    createFragmentForScreen(replacementOperation.screen, canNavigateBack = false)
 
-            check(stackModel.removeAt(stackModel.lastIndex) === fragment) {
-                "[RNScreens] Attempt to pop non-top screen"
+                fragmentOps.add(
+                    ReplaceRootOp(
+                        oldFragment = fragment,
+                        newFragment = replacementFragment,
+                        containerViewId = this.id,
+                    ),
+                )
+                stackModel[0] = replacementFragment
+                replacementPushOperation = replacementOperation
+            } else {
+                fragmentOps.add(PopBackStackOp(fragment))
+
+                check(stackModel.removeAt(stackModel.lastIndex) === fragment) {
+                    "[RNScreens] Attempt to pop non-top screen"
+                }
             }
         }
 
-        pendingPushOperations.forEach { operation ->
+        pendingPushOperations.filterNot { it === replacementPushOperation }.forEach { operation ->
             val newFragment = createFragmentForScreen(operation.screen, canNavigateBack = stackModel.isNotEmpty())
 
             fragmentOps.add(

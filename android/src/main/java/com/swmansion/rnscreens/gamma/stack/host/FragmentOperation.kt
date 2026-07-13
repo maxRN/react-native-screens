@@ -35,6 +35,19 @@ internal class PopBackStackOp(
     }
 }
 
+internal class ReplaceRootOp(
+    val oldFragment: StackScreenFragment,
+    val newFragment: StackScreenFragment,
+    val containerViewId: Int,
+) : FragmentOperation() {
+    override fun execute(
+        fragmentManager: FragmentManager,
+        executor: FragmentOperationExecutor,
+    ) {
+        executor.executeReplaceRootOp(fragmentManager, this)
+    }
+}
+
 internal class RemoveOp(
     val fragment: StackScreenFragment,
     val allowStateLoss: Boolean = true,
