@@ -1,6 +1,7 @@
 import type { ColorValue, CodegenTypes as CT, HostComponent, ImageSource, ProcessedColorValue, ViewProps } from 'react-native';
 import type { UnsafeMixed } from '../../codegenUtils';
 type StackHeaderTypeAndroid = 'small' | 'medium' | 'large';
+type StackHeaderRendererAndroid = 'view' | 'compose';
 export type StackHeaderToolbarMenuItemPressEventAndroid = Readonly<{
     id: string;
 }>;
@@ -50,6 +51,7 @@ export interface NativeProps extends ViewProps {
     transparent?: CT.WithDefault<boolean, false>;
     backButtonHidden?: CT.WithDefault<boolean, false>;
     type?: CT.WithDefault<StackHeaderTypeAndroid, 'small'>;
+    renderer?: CT.WithDefault<StackHeaderRendererAndroid, 'view'>;
     headerBackgroundColor?: ColorValue | undefined;
     backButtonTintColorNormal?: ColorValue | undefined;
     backButtonTintColorPressed?: ColorValue | undefined;

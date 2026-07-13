@@ -118,6 +118,18 @@ internal open class StackHeaderConfigViewManager :
             }
     }
 
+    override fun setRenderer(
+        view: StackHeaderConfig,
+        value: String?,
+    ) {
+        view.renderer =
+            when (value) {
+                "view" -> StackHeaderRenderer.VIEW
+                "compose" -> StackHeaderRenderer.COMPOSE
+                else -> throw JSApplicationIllegalArgumentException("[RNScreens] Invalid StackHeaderConfig renderer: $value.")
+            }
+    }
+
     override fun setTitle(
         view: StackHeaderConfig,
         value: String?,

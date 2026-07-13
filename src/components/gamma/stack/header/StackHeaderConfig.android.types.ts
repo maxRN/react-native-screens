@@ -4,6 +4,7 @@ import type { StackHeaderSubviewCollapseModeAndroid } from './android/StackHeade
 import type { PlatformIconAndroid } from '../../../../types';
 
 export type StackHeaderTypeAndroid = 'small' | 'medium' | 'large';
+export type StackHeaderRendererAndroid = 'view' | 'compose';
 
 export type StackHeaderBackgroundSubviewCollapseModeAndroid =
   StackHeaderSubviewCollapseModeAndroid;
@@ -432,6 +433,19 @@ export interface StackHeaderConfigCommandsAndroid {
 
 export interface StackHeaderConfigPropsAndroid {
   /**
+   * @summary Selects the native Android implementation used by this header.
+   *
+   * @description
+   * `view` retains the AppBarLayout/MaterialToolbar implementation. `compose`
+   * uses Material 3 Compose when the supplied configuration is supported.
+   * Unsupported configurations produce a precise error in debug builds; release
+   * builds emit a one-time diagnostic and fall back to `view`.
+   *
+   * @default view
+   * @platform android
+   */
+  renderer?: StackHeaderRendererAndroid | undefined;
+  /**
    * @summary Specifies the type of the Material 3 app bar.
    *
    * @description
@@ -441,8 +455,9 @@ export interface StackHeaderConfigPropsAndroid {
    * - `large` - large app bar with collapsing title.
    *
    * @remarks
-   * M3 Expressive headers aren't currently supported (there is no stable
-   * `MDC-Android` version yet).
+   * The `view` renderer uses stable `MDC-Android` app bars. The `compose`
+   * renderer currently supports the small Material 3 Expressive app bar and
+   * falls back to `view` for medium and large app bars.
    *
    * @see {@link https://m3.material.io/components/app-bars/overview|Material Design 3: App bars}
    *

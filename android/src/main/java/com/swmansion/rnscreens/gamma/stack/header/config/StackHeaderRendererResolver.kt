@@ -1,0 +1,93 @@
+package com.swmansion.rnscreens.gamma.stack.header.config
+
+import android.util.Log
+import com.facebook.react.bridge.JSApplicationIllegalArgumentException
+import com.swmansion.rnscreens.BuildConfig
+import java.util.concurrent.atomic.AtomicBoolean
+
+internal data class StackHeaderRendererCapabilities(
+    val type: StackHeaderType,
+    val isTransparent: Boolean = false,
+    val hasBackgroundColor: Boolean = false,
+    val hasBackgroundSubview: Boolean = false,
+    val hasCenterSubview: Boolean = false,
+    val hasTrailingSubview: Boolean = false,
+    val hasToolbarMenu: Boolean = false,
+    val hasToolbarMenuGroupDividers: Boolean = false,
+    val hasCustomBackIcon: Boolean = false,
+    val hasCustomBackTint: Boolean = false,
+    val hasScrollFlags: Boolean = false,
+)
+
+internal object StackHeaderRendererResolver {
+    fun resolve(
+        requested: StackHeaderRenderer,
+        capabilities: StackHeaderRendererCapabilities,
+    ): StackHeaderRenderer {
+        if (requested != StackHeaderRenderer.COMPOSE) {
+            return StackHeaderRenderer.VIEW
+        }
+
+        return if (unsupportedReason(capabilities) == null) {
+            StackHeaderRenderer.COMPOSE
+        } else {
+            StackHeaderRenderer.VIEW
+        }
+    }
+
+    fun unsupportedReason(capabilities: StackHeaderRendererCapabilities): String? =
+        when {
+            capabilities.type != StackHeaderType.SMALL -> "only small app bars are supported"
+            capabilities.isTransparent -> "transparent headers are not supported"
+            capabilities.hasBackgroundColor -> "custom background colors are not supported"
+            capabilities.hasBackgroundSubview -> "custom background views are not supported"
+            capabilities.hasCenterSubview -> "custom center views are not supported"
+            capabilities.hasTrailingSubview -> "custom trailing views are not supported"
+            capabilities.hasToolbarMenu -> "toolbar menus are not supported"
+            capabilities.hasToolbarMenuGroupDividers -> "toolbar menu group dividers are not supported"
+            capabilities.hasCustomBackIcon -> "custom back icons are not supported"
+            capabilities.hasCustomBackTint -> "custom back icon tints are not supported"
+            capabilities.hasScrollFlags -> "scroll flags are not supported"
+            else -> null
+        }
+}
+
+private val didReportComposeFallback = AtomicBoolean(false)
+
+internal fun StackHeaderConfigurationProviding.resolvedRenderer(): StackHeaderRenderer {
+    val capabilities =
+        StackHeaderRendererCapabilities(
+            type = type,
+            isTransparent = transparent,
+            hasBackgroundColor = headerBackgroundColor != null,
+            hasBackgroundSubview = backgroundSubview != null,
+            hasCenterSubview = centerSubview != null,
+            hasTrailingSubview = trailingSubview != null,
+            hasToolbarMenu = toolbarMenu.children.isNotEmpty() || toolbarMenu.groups.isNotEmpty(),
+            hasToolbarMenuGroupDividers = toolbarMenuGroupDividerEnabled,
+            hasCustomBackIcon = backButtonIcon != null,
+            hasCustomBackTint =
+                backButtonTintColorNormal != null ||
+                    backButtonTintColorPressed != null ||
+                    backButtonTintColorFocused != null,
+            hasScrollFlags =
+                scrollFlagScroll ||
+                    scrollFlagEnterAlways ||
+                    scrollFlagEnterAlwaysCollapsed ||
+                    scrollFlagExitUntilCollapsed ||
+                    scrollFlagSnap,
+        )
+    val reason = StackHeaderRendererResolver.unsupportedReason(capabilities)
+
+    if (renderer == StackHeaderRenderer.COMPOSE && reason != null) {
+        val message = "[RNScreens] Cannot use the Compose Stack header renderer: $reason."
+        if (BuildConfig.DEBUG) {
+            throw JSApplicationIllegalArgumentException(message)
+        }
+        if (didReportComposeFallback.compareAndSet(false, true)) {
+            Log.w("RNScreens", "$message Falling back to the View renderer.")
+        }
+    }
+
+    return StackHeaderRendererResolver.resolve(renderer, capabilities)
+}

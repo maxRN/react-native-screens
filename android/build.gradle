@@ -3,7 +3,10 @@ buildscript {
         rnsDefaultTargetSdkVersion = 34
         rnsDefaultCompileSdkVersion = 34
         rnsDefaultMinSdkVersion = 21
-        rnsDefaultKotlinVersion = '1.8.0'
+        rnsDefaultKotlinVersion = '2.1.20'
+        rnsDefaultComposeVersion = '1.10.6'
+        rnsDefaultComposeMaterialIconsVersion = '1.7.8'
+        rnsDefaultComposeMaterial3Version = '1.5.0-alpha17'
     }
     ext.safeExtGet = {prop, fallback ->
         def props = (prop instanceof String) ? [prop] : prop
@@ -18,6 +21,7 @@ buildscript {
     }
     dependencies {
         def isRunningInContextOfScreensRepo = project == rootProject
+        classpath "org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${safeExtGet('kotlinVersion', rnsDefaultKotlinVersion)}"
         if (isRunningInContextOfScreensRepo) {
             classpath('com.android.tools.build:gradle:8.2.1')
             classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${safeExtGet('kotlinVersion', rnsDefaultKotlinVersion)}"
@@ -87,6 +91,7 @@ if (isRunningInContextOfScreensRepo()) {
 }
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 def reactNativeArchitectures() {
     def value = project.getProperties().get("reactNativeArchitectures")
@@ -139,6 +144,7 @@ android {
     buildFeatures {
         prefab true
         buildConfig true
+        compose true
     }
     externalNativeBuild {
         cmake {
@@ -204,4 +210,9 @@ dependencies {
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'com.google.android.material:material:1.13.0'
     implementation "androidx.core:core-ktx:1.17.0"
+    implementation "androidx.compose.ui:ui-android:${safeExtGet('rnsComposeVersion', rnsDefaultComposeVersion)}"
+    implementation "androidx.compose.material:material-icons-core:${safeExtGet('rnsComposeMaterialIconsVersion', rnsDefaultComposeMaterialIconsVersion)}"
+    implementation "androidx.compose.material3:material3:${safeExtGet('rnsComposeMaterial3Version', rnsDefaultComposeMaterial3Version)}"
+
+    testImplementation 'junit:junit:4.13.2'
 }

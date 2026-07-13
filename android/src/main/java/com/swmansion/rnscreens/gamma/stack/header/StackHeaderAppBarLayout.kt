@@ -10,6 +10,7 @@ import com.google.android.material.R
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.google.android.material.appbar.MaterialToolbar
+import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderType
 import com.swmansion.rnscreens.utils.resolveDimensionAttr
 
@@ -17,6 +18,7 @@ internal sealed class StackHeaderAppBarLayout(
     context: Context,
 ) : AppBarLayout(context) {
     abstract val toolbar: MaterialToolbar
+    abstract val renderer: StackHeaderRenderer
 
     init {
         layoutParams =
@@ -37,6 +39,7 @@ internal sealed class StackHeaderAppBarLayout(
     internal class Small(
         context: Context,
     ) : StackHeaderAppBarLayout(context) {
+        override val renderer = StackHeaderRenderer.VIEW
         override val toolbar =
             MaterialToolbar(context).apply {
                 elevation = 0f
@@ -56,6 +59,7 @@ internal sealed class StackHeaderAppBarLayout(
         context: Context,
         val type: StackHeaderType,
     ) : StackHeaderAppBarLayout(context) {
+        override val renderer = StackHeaderRenderer.VIEW
         override val toolbar =
             MaterialToolbar(context).apply {
                 elevation = 0f
@@ -104,10 +108,20 @@ internal sealed class StackHeaderAppBarLayout(
         fun create(
             context: Context,
             type: StackHeaderType,
+            renderer: StackHeaderRenderer,
         ): StackHeaderAppBarLayout =
-            when (type) {
-                StackHeaderType.SMALL -> Small(context)
-                StackHeaderType.MEDIUM, StackHeaderType.LARGE -> Collapsing(context, type)
+            when (renderer) {
+                StackHeaderRenderer.COMPOSE -> {
+                    require(type == StackHeaderType.SMALL) {
+                        "[RNScreens] The Compose header renderer currently supports only small app bars."
+                    }
+                    StackHeaderComposeAppBarLayout(context)
+                }
+                StackHeaderRenderer.VIEW ->
+                    when (type) {
+                        StackHeaderType.SMALL -> Small(context)
+                        StackHeaderType.MEDIUM, StackHeaderType.LARGE -> Collapsing(context, type)
+                    }
             }
     }
 }

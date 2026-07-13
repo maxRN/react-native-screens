@@ -29,6 +29,7 @@ import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.swmansion.rnscreens.ext.detachFromCurrentParent
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigurationProviding
+import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
 import com.swmansion.rnscreens.gamma.stack.header.subview.StackHeaderSubview
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuConfig
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementConfig
@@ -49,8 +50,11 @@ internal class StackHeaderApplicator(
     fun rebuild(
         coordinatorLayout: StackHeaderCoordinatorLayout,
         config: StackHeaderConfigurationProviding,
+        renderer: StackHeaderRenderer,
+        canNavigateBack: Boolean,
+        onNavigationIconClick: () -> Unit,
     ): StackHeaderAppBarLayout {
-        val appBar = StackHeaderAppBarLayout.create(wrappedContext, config.type)
+        val appBar = StackHeaderAppBarLayout.create(wrappedContext, config.type, renderer)
 
         if (config.transparent) {
             coordinatorLayout.removeContentBehavior()
@@ -62,9 +66,11 @@ internal class StackHeaderApplicator(
 
         // Make sure that we receive insets, necessary when changing header mode in runtime.
         appBar.requestApplyInsets()
-        populateAppBar(appBar, config)
+        populateAppBar(appBar, config, canNavigateBack, onNavigationIconClick)
         maybeApplyRTLCollapsingToolbarLayoutWorkaround(coordinatorLayout, config, appBar)
-        appBar.toolbar.requestLayout()
+        if (appBar.renderer == StackHeaderRenderer.VIEW) {
+            appBar.toolbar.requestLayout()
+        }
 
         return appBar
     }
@@ -76,7 +82,14 @@ internal class StackHeaderApplicator(
     private fun populateAppBar(
         appBar: StackHeaderAppBarLayout,
         config: StackHeaderConfigurationProviding,
+        canNavigateBack: Boolean,
+        onNavigationIconClick: () -> Unit,
     ) {
+        if (appBar is StackHeaderComposeAppBarLayout) {
+            appBar.applyConfiguration(config, canNavigateBack, onNavigationIconClick)
+            return
+        }
+
         val toolbar = appBar.toolbar
 
         config.headerBackgroundColor?.let { color ->
@@ -214,15 +227,23 @@ internal class StackHeaderApplicator(
             is StackHeaderAppBarLayout.Collapsing -> {
                 appBar.collapsingToolbarLayout.title = config.title
             }
+
+            is StackHeaderComposeAppBarLayout -> appBar.applyTitle(config.title)
         }
     }
 
     fun applyBackButton(
-        toolbar: MaterialToolbar,
+        appBar: StackHeaderAppBarLayout,
         config: StackHeaderConfigurationProviding,
         canNavigateBack: Boolean,
         onNavigationIconClick: () -> Unit,
     ) {
+        if (appBar is StackHeaderComposeAppBarLayout) {
+            appBar.applyBackButton(config, canNavigateBack, onNavigationIconClick)
+            return
+        }
+
+        val toolbar = appBar.toolbar
         val visible = canNavigateBack && !config.backButtonHidden
 
         if (!visible) {
@@ -262,6 +283,7 @@ internal class StackHeaderApplicator(
             when (appBar) {
                 is StackHeaderAppBarLayout.Small -> appBar.toolbar
                 is StackHeaderAppBarLayout.Collapsing -> appBar.collapsingToolbarLayout
+                is StackHeaderComposeAppBarLayout -> return
             }
         val params = target.layoutParams as AppBarLayout.LayoutParams
         params.scrollFlags = desired

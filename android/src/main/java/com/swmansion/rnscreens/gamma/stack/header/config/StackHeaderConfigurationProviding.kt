@@ -6,6 +6,7 @@ import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenu
 
 internal interface StackHeaderConfigurationProviding {
     val type: StackHeaderType
+    val renderer: StackHeaderRenderer
     val title: String
     val hidden: Boolean
     val transparent: Boolean

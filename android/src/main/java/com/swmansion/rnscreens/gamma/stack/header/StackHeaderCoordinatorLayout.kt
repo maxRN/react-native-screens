@@ -17,6 +17,8 @@ import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfiguratio
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigurationProviding
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderDelegate
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderInvalidationFlags
+import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
+import com.swmansion.rnscreens.gamma.stack.header.config.resolvedRenderer
 import com.swmansion.rnscreens.gamma.stack.header.subview.StackHeaderSubviewProviding
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementOptions
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuGroupMetadata
@@ -70,7 +72,9 @@ internal class StackHeaderCoordinatorLayout(
                 id: String,
                 options: StackHeaderToolbarMenuElementOptions,
             ) {
-                val toolbar = appBarLayout?.toolbar ?: return
+                val appBar = appBarLayout ?: return
+                if (appBar.renderer != StackHeaderRenderer.VIEW) return
+                val toolbar = appBar.toolbar
                 applicator.updateToolbarMenuElement(toolbar, toolbarMenuForwardIdMap, id, options)
                 if (options.checked != null) {
                     handleGroupItemStateChange(toolbar, id, options.checked)
@@ -176,7 +180,10 @@ internal class StackHeaderCoordinatorLayout(
     }
 
     private fun processUpdate(provider: StackHeaderConfigurationProviding) {
-        val needsRebuild = provider.invalidationFlags.needsRebuild
+        val renderer = provider.resolvedRenderer()
+        val needsRebuild =
+            provider.invalidationFlags.needsRebuild ||
+                appBarLayout?.renderer?.let { it != renderer } == true
         if (needsRebuild) {
             resetHeader()
             if (provider.hidden) {
@@ -186,7 +193,14 @@ internal class StackHeaderCoordinatorLayout(
                 return
             }
 
-            val appBar = applicator.rebuild(this, provider)
+            val appBar =
+                applicator.rebuild(
+                    this,
+                    provider,
+                    renderer,
+                    canNavigateBack,
+                    onNavigationIconClick,
+                )
             appBarLayout = appBar
             attachAppBarListeners(appBar)
 
@@ -204,7 +218,7 @@ internal class StackHeaderCoordinatorLayout(
             }
 
             if (needsRebuild || provider.invalidationFlags.containsAny(StackHeaderInvalidationFlags.BACK_BUTTON)) {
-                applicator.applyBackButton(appBar.toolbar, provider, canNavigateBack, onNavigationIconClick)
+                applicator.applyBackButton(appBar, provider, canNavigateBack, onNavigationIconClick)
                 provider.clearInvalidationFlags(StackHeaderInvalidationFlags.BACK_BUTTON)
             }
 
@@ -214,6 +228,11 @@ internal class StackHeaderCoordinatorLayout(
             }
 
             if (provider.invalidationFlags.containsAny(StackHeaderInvalidationFlags.TOOLBAR_MENU)) {
+                if (appBar.renderer != StackHeaderRenderer.VIEW) {
+                    provider.clearInvalidationFlags(StackHeaderInvalidationFlags.TOOLBAR_MENU)
+                    onMaybeHeaderLayoutChanged()
+                    return
+                }
                 val (forwardIdMap, reverseIdMap) =
                     applicator.generateToolbarMenuItemMappings(
                         provider.toolbarMenu,

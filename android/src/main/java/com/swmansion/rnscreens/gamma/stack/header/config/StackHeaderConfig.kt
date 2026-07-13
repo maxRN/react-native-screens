@@ -74,6 +74,11 @@ internal class StackHeaderConfig(
     }
         internal set
 
+    override var renderer: StackHeaderRenderer by Delegates.observable(StackHeaderRenderer.VIEW) { _, old, new ->
+        if (old != new) invalidate(StackHeaderInvalidationFlags.STRUCTURE)
+    }
+        internal set
+
     override var title: String by Delegates.observable("") { _, old, new ->
         if (old != new) invalidate(StackHeaderInvalidationFlags.TITLE)
     }
