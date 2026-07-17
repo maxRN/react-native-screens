@@ -13,6 +13,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -90,6 +91,7 @@ internal class StackHeaderComposeAppBarLayout(
     private var onMenuItemClick by mutableStateOf<(String) -> Unit>({})
     private var mediumTopAppBarState: TopAppBarState? = null
     private var coordinatorOffsetPx = 0
+    private var topInsetPx by mutableStateOf(0)
 
     private val composeView =
         ComposeView(context).apply {
@@ -103,6 +105,10 @@ internal class StackHeaderComposeAppBarLayout(
                         if (dark) darkColorScheme() else lightColorScheme()
                     }
                 val mediumScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+                val mediumWindowInsets =
+                    WindowInsets(
+                        top = StackHeaderMediumAppBarMetrics.collapsedRowTopPx(topInsetPx),
+                    )
 
                 LaunchedEffect(mediumScrollBehavior.state.heightOffsetLimit) {
                     if (type == StackHeaderType.MEDIUM) {
@@ -125,6 +131,7 @@ internal class StackHeaderComposeAppBarLayout(
                                 title = { titleContent() },
                                 navigationIcon = { navigationIconContent() },
                                 actions = { actionsContent() },
+                                windowInsets = mediumWindowInsets,
                                 scrollBehavior = mediumScrollBehavior,
                             )
 
@@ -136,7 +143,7 @@ internal class StackHeaderComposeAppBarLayout(
 
     private val appBarContent: View =
         if (type == StackHeaderType.MEDIUM) {
-            StackHeaderMediumAppBarContainer(context).apply {
+            StackHeaderMediumAppBarContainer(context) { topInsetPx = it }.apply {
                 addView(composeView, FrameLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT))
                 layoutParams =
                     AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -278,17 +285,27 @@ internal class StackHeaderComposeAppBarLayout(
  */
 private class StackHeaderMediumAppBarContainer(
     context: Context,
+    private val onTopInsetChanged: (Int) -> Unit,
 ) : FrameLayout(context) {
     private var topInsetPx = 0
 
     init {
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val nextTopInset =
+            val insetTypes = WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            val dispatchedTopInset =
                 insets
-                    .getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+                    .getInsetsIgnoringVisibility(insetTypes)
                     .top
+            val rootTopInset =
+                ViewCompat
+                    .getRootWindowInsets(this)
+                    ?.getInsetsIgnoringVisibility(insetTypes)
+                    ?.top ?: 0
+            val nextTopInset =
+                StackHeaderMediumAppBarMetrics.stableTopInsetPx(dispatchedTopInset, rootTopInset)
             if (topInsetPx != nextTopInset) {
                 topInsetPx = nextTopInset
+                onTopInsetChanged(topInsetPx)
                 requestLayout()
             }
             insets
@@ -304,7 +321,19 @@ internal object StackHeaderMediumAppBarMetrics {
     fun collapsedHeightPx(
         density: Float,
         topInsetPx: Int,
-    ): Int = (COLLAPSED_HEIGHT_DP * density).roundToInt() + topInsetPx
+    ): Int = (COLLAPSED_HEIGHT_DP * density).roundToInt() + collapsedRowTopPx(topInsetPx)
+
+    /** The collapsed row must begin below the system status/cutout area in screen coordinates. */
+    fun collapsedRowTopPx(topInsetPx: Int): Int = max(0, topInsetPx)
+
+    /**
+     * AppBarLayout can consume its descendant's insets while it translates. The root inset stays
+     * in screen coordinates, so preserve whichever source still reports the system-safe top.
+     */
+    fun stableTopInsetPx(
+        dispatchedTopInsetPx: Int,
+        rootTopInsetPx: Int,
+    ): Int = max(collapsedRowTopPx(dispatchedTopInsetPx), collapsedRowTopPx(rootTopInsetPx))
 
     fun totalScrollRangePx(
         expandedHeightPx: Int,

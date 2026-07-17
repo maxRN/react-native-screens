@@ -18,6 +18,34 @@ class StackHeaderMediumAppBarMetricsTest {
     }
 
     @Test
+    fun `collapsed row remains below the status inset in screen coordinates`() {
+        assertEquals(128, StackHeaderMediumAppBarMetrics.collapsedRowTopPx(topInsetPx = 128))
+        assertEquals(
+            296,
+            StackHeaderMediumAppBarMetrics.collapsedHeightPx(
+                density = 2.625f,
+                topInsetPx = 128,
+            ),
+        )
+    }
+
+    @Test
+    fun `collapsed row top never enters a negative inset region`() {
+        assertEquals(0, StackHeaderMediumAppBarMetrics.collapsedRowTopPx(topInsetPx = -1))
+    }
+
+    @Test
+    fun `root inset preserves the collapsed action row when AppBar consumes descendant insets`() {
+        assertEquals(
+            128,
+            StackHeaderMediumAppBarMetrics.stableTopInsetPx(
+                dispatchedTopInsetPx = 0,
+                rootTopInsetPx = 128,
+            ),
+        )
+    }
+
+    @Test
     fun `scroll range cannot collapse below the collapsed height`() {
         assertEquals(
             168,
