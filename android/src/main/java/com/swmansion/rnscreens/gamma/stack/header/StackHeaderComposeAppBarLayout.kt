@@ -10,6 +10,7 @@ import android.os.Build
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.size
@@ -47,6 +48,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.swmansion.rnscreens.ext.detachFromCurrentParent
@@ -59,6 +62,8 @@ import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenu
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementOptions
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuItemConfig
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarUpdate
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * A navigation-owned Compose app bar. CoordinatorLayout remains the nested-scroll authority:
@@ -87,19 +92,6 @@ internal class StackHeaderComposeAppBarLayout(
     private val composeView =
         ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
-            if (type == StackHeaderType.MEDIUM) {
-                // Material3's medium bar collapses to the standard 64dp small app bar. This is
-                // the AppBarLayout scroll range; Material3 itself owns the actual dimensions.
-                minimumHeight = (64 * resources.displayMetrics.density).toInt()
-                layoutParams =
-                    AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                        scrollFlags =
-                            AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
-                            AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS
-                    }
-            } else {
-                layoutParams = AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-            }
             setContent {
                 val dark = isSystemInDarkTheme()
                 val colorScheme =
@@ -139,9 +131,25 @@ internal class StackHeaderComposeAppBarLayout(
             }
         }
 
+    private val appBarContent: View =
+        if (type == StackHeaderType.MEDIUM) {
+            StackHeaderMediumAppBarContainer(context).apply {
+                addView(composeView, FrameLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+                layoutParams =
+                    AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                        scrollFlags =
+                            StackHeaderMediumAppBarContract.scrollingFlags
+                    }
+            }
+        } else {
+            composeView.apply {
+                layoutParams = AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+            }
+        }
+
     init {
         fitsSystemWindows = false
-        addView(composeView)
+        addView(appBarContent)
     }
 
     fun applyConfiguration(
@@ -245,6 +253,60 @@ internal class StackHeaderComposeAppBarLayout(
         showUpButton = leadingView == null && canNavigateBack && !config.backButtonHidden
         this.onNavigationIconClick = onNavigationIconClick
     }
+}
+
+/**
+ * AppBarLayout calculates its total scroll range from its direct child's minimum height.
+ * ComposeView may replace its framework minimum during measurement, so use a View container
+ * with an explicit collapsed Material small-bar height plus the consumed top inset.
+ */
+private class StackHeaderMediumAppBarContainer(
+    context: Context,
+) : FrameLayout(context) {
+    private var topInsetPx = 0
+
+    init {
+        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
+            val nextTopInset =
+                insets
+                    .getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+                    .top
+            if (topInsetPx != nextTopInset) {
+                topInsetPx = nextTopInset
+                requestLayout()
+            }
+            insets
+        }
+    }
+
+    override fun getMinimumHeight(): Int = StackHeaderMediumAppBarMetrics.collapsedHeightPx(resources.displayMetrics.density, topInsetPx)
+}
+
+internal object StackHeaderMediumAppBarMetrics {
+    private const val COLLAPSED_HEIGHT_DP = 64
+
+    fun collapsedHeightPx(
+        density: Float,
+        topInsetPx: Int,
+    ): Int = (COLLAPSED_HEIGHT_DP * density).roundToInt() + topInsetPx
+
+    fun totalScrollRangePx(
+        expandedHeightPx: Int,
+        density: Float,
+        topInsetPx: Int,
+    ): Int = max(0, expandedHeightPx - collapsedHeightPx(density, topInsetPx))
+}
+
+/**
+ * EXIT_UNTIL_COLLAPSED is a View-system implementation detail: AppBarLayout only subtracts
+ * its direct child's minimum height from totalScrollRange when this flag is set. Compose still
+ * exposes the public semantic profile as enter-always and deliberately does not request snap.
+ */
+internal object StackHeaderMediumAppBarContract {
+    val scrollingFlags: Int =
+        AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+            AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS or
+            AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED
 }
 
 @androidx.compose.runtime.Composable
