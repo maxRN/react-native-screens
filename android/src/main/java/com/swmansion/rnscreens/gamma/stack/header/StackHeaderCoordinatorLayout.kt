@@ -319,8 +319,12 @@ internal class StackHeaderCoordinatorLayout(
     internal fun setScreenActive(isActive: Boolean) {
         isScreenActive = isActive
         val accessibilityTargets = StackHeaderScreenAccessibilityTargets.resolve(isActive)
-        // Expo UI Compose exposes virtual semantics from StackScreen itself, while ordinary React
-        // Native content is reached through the wrapper. Both roots need the activity boundary.
+        // CoordinatorLayout exposes itself as a ScrollView accessibility root. It is the retained
+        // fragment boundary that owns Expo UI's Compose virtual tree, so make it inactive before
+        // its descendants. This keeps the transition surface drawable while pruning that tree.
+        importantForAccessibility = accessibilityTargets.coordinatorImportance
+        // These roots still cover ordinary React Native content and any content mounted after a
+        // fragment has resigned its top position.
         stackScreen.importantForAccessibility = accessibilityTargets.stackScreenImportance
         stackScreenWrapper.importantForAccessibility = accessibilityTargets.wrapperImportance
         appBarLayout?.let(::applyScreenActivity)
@@ -528,13 +532,14 @@ internal enum class StackHeaderScreenActivity(
 }
 
 internal data class StackHeaderScreenAccessibilityTargets(
+    val coordinatorImportance: Int,
     val stackScreenImportance: Int,
     val wrapperImportance: Int,
 ) {
     companion object {
         fun resolve(isActive: Boolean): StackHeaderScreenAccessibilityTargets {
             val importance = StackHeaderScreenActivity.resolve(isActive).accessibilityImportance
-            return StackHeaderScreenAccessibilityTargets(importance, importance)
+            return StackHeaderScreenAccessibilityTargets(importance, importance, importance)
         }
     }
 }

@@ -29,6 +29,10 @@ class StackHeaderComposeActivityTest {
 
         assertEquals(
             View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+            inactiveTargets.coordinatorImportance,
+        )
+        assertEquals(
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
             inactiveTargets.stackScreenImportance,
         )
         assertEquals(
