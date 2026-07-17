@@ -4,7 +4,6 @@ import android.util.Log
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException
 import com.swmansion.rnscreens.BuildConfig
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderComposeActionPlanner
-import java.util.concurrent.atomic.AtomicBoolean
 
 internal data class StackHeaderRendererCapabilities(
     val type: StackHeaderType,
@@ -17,6 +16,12 @@ internal data class StackHeaderRendererCapabilities(
     val hasCustomBackIcon: Boolean = false,
     val hasCustomBackTint: Boolean = false,
     val scrollFlags: StackHeaderScrollFlags = StackHeaderScrollFlags(),
+)
+
+internal data class StackHeaderRendererResolution(
+    val requested: StackHeaderRenderer,
+    val actual: StackHeaderRenderer,
+    val fallbackReason: String? = null,
 )
 
 /** The only scroll profile Compose controls in v1 is the official medium enter-always pattern. */
@@ -48,15 +53,22 @@ internal object StackHeaderRendererResolver {
         requested: StackHeaderRenderer,
         capabilities: StackHeaderRendererCapabilities,
         actionMenuUnsupportedReason: String? = null,
-    ): StackHeaderRenderer {
+    ): StackHeaderRenderer = resolution(requested, capabilities, actionMenuUnsupportedReason).actual
+
+    fun resolution(
+        requested: StackHeaderRenderer,
+        capabilities: StackHeaderRendererCapabilities,
+        actionMenuUnsupportedReason: String? = null,
+    ): StackHeaderRendererResolution {
         if (requested != StackHeaderRenderer.COMPOSE) {
-            return StackHeaderRenderer.VIEW
+            return StackHeaderRendererResolution(requested, StackHeaderRenderer.VIEW)
         }
 
-        return if (unsupportedReason(capabilities) == null && actionMenuUnsupportedReason == null) {
-            StackHeaderRenderer.COMPOSE
+        val fallbackReason = unsupportedReason(capabilities) ?: actionMenuUnsupportedReason
+        return if (fallbackReason == null) {
+            StackHeaderRendererResolution(requested, StackHeaderRenderer.COMPOSE)
         } else {
-            StackHeaderRenderer.VIEW
+            StackHeaderRendererResolution(requested, StackHeaderRenderer.VIEW, fallbackReason)
         }
     }
 
@@ -76,8 +88,6 @@ internal object StackHeaderRendererResolver {
             else -> null
         }
 }
-
-private val didReportComposeFallback = AtomicBoolean(false)
 
 internal fun StackHeaderConfigurationProviding.resolvedRenderer(): StackHeaderRenderer {
     val capabilities =
@@ -103,19 +113,22 @@ internal fun StackHeaderConfigurationProviding.resolvedRenderer(): StackHeaderRe
                     snap = scrollFlagSnap,
                 ),
         )
-    val reason =
+    val fallbackReason =
         StackHeaderRendererResolver.unsupportedReason(capabilities)
             ?: StackHeaderComposeActionPlanner.unsupportedReason(toolbarMenu)
+    val resolution = StackHeaderRendererResolver.resolution(renderer, capabilities, fallbackReason)
 
-    if (renderer == StackHeaderRenderer.COMPOSE && reason != null) {
-        val message = "[RNScreens] Cannot use the Compose Stack header renderer: $reason."
+    if (renderer == StackHeaderRenderer.COMPOSE && fallbackReason != null) {
+        val message = "[RNScreens] Cannot use the Compose Stack header renderer: $fallbackReason."
         if (BuildConfig.DEBUG) {
             throw JSApplicationIllegalArgumentException(message)
         }
-        if (didReportComposeFallback.compareAndSet(false, true)) {
+        if ((this as? StackHeaderConfig)?.recordRendererResolution(resolution) != false) {
             Log.w("RNScreens", "$message Falling back to the View renderer.")
         }
+    } else {
+        (this as? StackHeaderConfig)?.recordRendererResolution(resolution)
     }
 
-    return StackHeaderRendererResolver.resolve(renderer, capabilities, reason)
+    return resolution.actual
 }

@@ -53,6 +53,7 @@ internal class StackScreenFragment(
     ) {
         super.onViewCreated(view, savedInstanceState)
         screenLifecycleEventEmitter = stackScreen.createAppearanceEventsEmitter(viewLifecycleOwner)
+        setComposeHeaderActive(isTopFragment)
     }
 
     override fun onDestroyView() {
@@ -82,6 +83,7 @@ internal class StackScreenFragment(
 
         isTopFragment = true
         requireNativeDismissBackPressedCallback.canBeEnabled = true
+        setComposeHeaderActive(true)
     }
 
     /**
@@ -95,6 +97,11 @@ internal class StackScreenFragment(
 
         isTopFragment = false
         requireNativeDismissBackPressedCallback.canBeEnabled = false
+        setComposeHeaderActive(false)
+    }
+
+    private fun setComposeHeaderActive(isActive: Boolean) {
+        (view as? StackHeaderCoordinatorLayout)?.setComposeHeaderActive(isActive)
     }
 
     private fun setupPreventNativeDismissCallback() {

@@ -1,6 +1,7 @@
 package com.swmansion.rnscreens.gamma.stack.header.config
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StackHeaderRendererResolverTest {
@@ -112,5 +113,30 @@ class StackHeaderRendererResolverTest {
                 ),
             ),
         )
+    }
+
+    @Test
+    fun `exposes the actual View fallback and rejected reason`() {
+        val resolution =
+            StackHeaderRendererResolver.resolution(
+                requested = StackHeaderRenderer.COMPOSE,
+                capabilities = StackHeaderRendererCapabilities(type = StackHeaderType.LARGE),
+            )
+
+        assertEquals(StackHeaderRenderer.COMPOSE, resolution.requested)
+        assertEquals(StackHeaderRenderer.VIEW, resolution.actual)
+        assertEquals("large app bars are not supported", resolution.fallbackReason)
+    }
+
+    @Test
+    fun `supported Compose resolution has no fallback reason`() {
+        val resolution =
+            StackHeaderRendererResolver.resolution(
+                requested = StackHeaderRenderer.COMPOSE,
+                capabilities = StackHeaderRendererCapabilities(type = StackHeaderType.SMALL),
+            )
+
+        assertEquals(StackHeaderRenderer.COMPOSE, resolution.actual)
+        assertNull(resolution.fallbackReason)
     }
 }

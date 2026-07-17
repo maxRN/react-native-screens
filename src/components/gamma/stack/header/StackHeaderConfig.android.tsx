@@ -24,6 +24,7 @@ import type {
   StackHeaderToolbarMenuElementAndroid as NativeToolbarMenuElementAndroid,
   StackHeaderToolbarMenuItemPressEventAndroid,
   StackHeaderToolbarMenuGroupSelectionChangeEventAndroid,
+  StackHeaderRendererResolvedEventAndroid,
   StackHeaderToolbarMenuElementOptionsAndroid as NativeToolbarMenuElementOptionsAndroid,
 } from '../../../../fabric/gamma/stack/StackHeaderConfigAndroidNativeComponent';
 import StackHeaderSubview from './android/StackHeaderSubview.android';
@@ -66,6 +67,7 @@ function StackHeaderConfig(
     scrollFlagSnap,
     toolbarMenu,
     toolbarMenuGroupDividerEnabled,
+    onRendererResolved,
     ...filteredAndroidProps
   } = android ?? {};
 
@@ -90,6 +92,12 @@ function StackHeaderConfig(
     group?.onSelectionChange?.(selectedIds);
   };
 
+  const handleRendererResolved = (
+    event: NativeSyntheticEvent<StackHeaderRendererResolvedEventAndroid>,
+  ) => {
+    onRendererResolved?.(event.nativeEvent);
+  };
+
   const backButtonIconProps = parseBackButtonIconToNativeProps(backButtonIcon);
   const scrollFlagProps = resolveScrollFlags(
     filteredAndroidProps.type,
@@ -112,6 +120,7 @@ function StackHeaderConfig(
       toolbarMenuGroupDividerEnabled={toolbarMenuGroupDividerEnabled}
       onToolbarMenuItemPress={handleToolbarMenuItemPress}
       onToolbarMenuGroupSelectionChange={handleToolbarMenuGroupSelectionChange}
+      onRendererResolved={handleRendererResolved}
       {...baseProps}
       {...filteredAndroidProps}
       {...backButtonIconProps}

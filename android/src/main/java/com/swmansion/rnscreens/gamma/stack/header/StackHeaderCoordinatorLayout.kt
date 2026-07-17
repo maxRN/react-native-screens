@@ -3,13 +3,12 @@ package com.swmansion.rnscreens.gamma.stack.header
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
+import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
-import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException
-import com.facebook.react.bridge.ReactContext
 import com.google.android.material.R
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
@@ -181,15 +180,27 @@ internal class StackHeaderCoordinatorLayout(
     private val applicator = StackHeaderApplicator(wrappedContext)
 
     private var appBarLayout: StackHeaderAppBarLayout? = null
+    private var isComposeHeaderActive = false
 
     private var toolbarMenuForwardIdMap = emptyMap<String, Int>()
     private var toolbarMenuGroupMetadata = StackHeaderToolbarMenuGroupMetadata.EMPTY
 
-    private val onNavigationIconClick: () -> Unit = {
-        val activity =
-            (stackScreen.context as? ReactContext)?.currentActivity
-                as? OnBackPressedDispatcherOwner
-        activity?.onBackPressedDispatcher?.onBackPressed()
+    private val onNavigationIconClick: () -> Unit = ::navigateUp
+
+    private fun navigateUp() {
+        when (
+            StackHeaderUpNavigation.resolve(
+                canNavigateBack = canNavigateBack,
+                preventNativeDismiss = stackScreen.isPreventNativeDismissEnabled,
+            )
+        ) {
+            StackHeaderUpNavigation.Action.NO_OP -> Unit
+            StackHeaderUpNavigation.Action.DISPATCH_PREVENTED -> stackScreen.onNativeDismissPrevented()
+            StackHeaderUpNavigation.Action.POP_NATIVE_STACK ->
+                // Use this screen's FragmentManager rather than the activity dispatcher: the latter
+                // may delegate to the host app and close it instead of popping this Stack v5 screen.
+                stackScreen.getAssociatedFragment()?.parentFragmentManager?.popBackStack()
+        }
     }
 
     private fun processUpdate(provider: StackHeaderConfigurationProviding) {
@@ -216,6 +227,7 @@ internal class StackHeaderCoordinatorLayout(
                     onMenuItemClick = { id -> currentDelegate?.onMenuItemClicked(id) },
                 )
             appBarLayout = appBar
+            applyComposeHeaderActivity(appBar)
             attachAppBarListeners(appBar)
 
             // If config needs to be rebuilt, all other flags must be invalidated as well.
@@ -292,6 +304,23 @@ internal class StackHeaderCoordinatorLayout(
     }
 
     // endregion
+
+    /**
+     * Stack fragments stay mounted for native transitions, but an inactive fragment must not draw
+     * or expose a Compose header. Its content remains mounted for the native transition surface.
+     */
+    internal fun setComposeHeaderActive(isActive: Boolean) {
+        if (isComposeHeaderActive == isActive) return
+        isComposeHeaderActive = isActive
+        appBarLayout?.let(::applyComposeHeaderActivity)
+    }
+
+    private fun applyComposeHeaderActivity(appBar: StackHeaderAppBarLayout) {
+        if (appBar.renderer != StackHeaderRenderer.COMPOSE) return
+        val activity = StackHeaderComposeActivity.resolve(isComposeHeaderActive)
+        appBar.visibility = activity.viewVisibility
+        appBar.importantForAccessibility = activity.accessibilityImportance
+    }
 
     // region Group selection
 
@@ -430,5 +459,36 @@ internal class StackHeaderCoordinatorLayout(
 
     companion object {
         private const val TAG = "StackHeaderCoordinatorLayout"
+    }
+}
+
+internal object StackHeaderUpNavigation {
+    enum class Action {
+        NO_OP,
+        DISPATCH_PREVENTED,
+        POP_NATIVE_STACK,
+    }
+
+    fun resolve(
+        canNavigateBack: Boolean,
+        preventNativeDismiss: Boolean,
+    ): Action =
+        when {
+            !canNavigateBack -> Action.NO_OP
+            preventNativeDismiss -> Action.DISPATCH_PREVENTED
+            else -> Action.POP_NATIVE_STACK
+        }
+}
+
+internal enum class StackHeaderComposeActivity(
+    val viewVisibility: Int,
+    val accessibilityImportance: Int,
+) {
+    VISIBLE(View.VISIBLE, View.IMPORTANT_FOR_ACCESSIBILITY_AUTO),
+    HIDDEN(View.INVISIBLE, View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS),
+    ;
+
+    companion object {
+        fun resolve(isActive: Boolean): StackHeaderComposeActivity = if (isActive) VISIBLE else HIDDEN
     }
 }

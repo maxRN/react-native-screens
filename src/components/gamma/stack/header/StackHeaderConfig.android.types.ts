@@ -3,6 +3,12 @@ import type { ColorValue } from 'react-native';
 import type { StackHeaderSubviewCollapseModeAndroid } from './android/StackHeaderSubview.android.types';
 import type { PlatformIconAndroid } from '../../../../types';
 
+export type StackHeaderRendererResolvedEventAndroid = Readonly<{
+  requestedRenderer: StackHeaderRendererAndroid;
+  actualRenderer: StackHeaderRendererAndroid;
+  fallbackReason: string | null;
+}>;
+
 export type StackHeaderTypeAndroid = 'small' | 'medium' | 'large';
 export type StackHeaderRendererAndroid = 'view' | 'compose';
 
@@ -657,4 +663,11 @@ export interface StackHeaderConfigPropsAndroid {
    * @supported API 28 or higher
    */
   toolbarMenuGroupDividerEnabled?: boolean | undefined;
+  /**
+   * Reports the renderer actually mounted for this header and its production
+   * Compose fallback reason, if any. This is intended for development diagnostics.
+   *
+   * @platform android
+   */
+  onRendererResolved?: ((event: StackHeaderRendererResolvedEventAndroid) => void) | undefined;
 }

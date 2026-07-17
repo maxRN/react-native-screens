@@ -23,6 +23,12 @@ export type StackHeaderToolbarMenuGroupSelectionChangeEventAndroid = Readonly<{
   selectedIds: string[];
 }>;
 
+export type StackHeaderRendererResolvedEventAndroid = Readonly<{
+  requestedRenderer: StackHeaderRendererAndroid;
+  actualRenderer: StackHeaderRendererAndroid;
+  fallbackReason: string | null;
+}>;
+
 type StackHeaderToolbarMenuItemShowAsActionAndroid =
   | 'always'
   | 'alwaysWithText'
@@ -112,6 +118,9 @@ export interface NativeProps extends ViewProps {
     | undefined;
   onToolbarMenuGroupSelectionChange?:
     | CT.DirectEventHandler<StackHeaderToolbarMenuGroupSelectionChangeEventAndroid>
+    | undefined;
+  onRendererResolved?:
+    | CT.DirectEventHandler<StackHeaderRendererResolvedEventAndroid>
     | undefined;
 }
 
