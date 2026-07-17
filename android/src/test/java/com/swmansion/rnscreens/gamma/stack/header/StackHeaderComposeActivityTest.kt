@@ -25,13 +25,19 @@ class StackHeaderComposeActivityTest {
 
     @Test
     fun `inactive screen content remains drawable but is hidden from accessibility`() {
+        val inactiveTargets = StackHeaderScreenAccessibilityTargets.resolve(isActive = false)
+
         assertEquals(
             View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
-            StackHeaderScreenActivity.resolve(isActive = false).accessibilityImportance,
+            inactiveTargets.stackScreenImportance,
         )
         assertEquals(
             View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,
             StackHeaderScreenActivity.resolve(isActive = true).accessibilityImportance,
+        )
+        assertEquals(
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+            inactiveTargets.wrapperImportance,
         )
     }
 

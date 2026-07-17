@@ -318,8 +318,11 @@ internal class StackHeaderCoordinatorLayout(
      */
     internal fun setScreenActive(isActive: Boolean) {
         isScreenActive = isActive
-        stackScreenWrapper.importantForAccessibility =
-            StackHeaderScreenActivity.resolve(isActive).accessibilityImportance
+        val accessibilityTargets = StackHeaderScreenAccessibilityTargets.resolve(isActive)
+        // Expo UI Compose exposes virtual semantics from StackScreen itself, while ordinary React
+        // Native content is reached through the wrapper. Both roots need the activity boundary.
+        stackScreen.importantForAccessibility = accessibilityTargets.stackScreenImportance
+        stackScreenWrapper.importantForAccessibility = accessibilityTargets.wrapperImportance
         appBarLayout?.let(::applyScreenActivity)
     }
 
@@ -521,6 +524,18 @@ internal enum class StackHeaderScreenActivity(
 
     companion object {
         fun resolve(isActive: Boolean): StackHeaderScreenActivity = if (isActive) ACTIVE else INACTIVE
+    }
+}
+
+internal data class StackHeaderScreenAccessibilityTargets(
+    val stackScreenImportance: Int,
+    val wrapperImportance: Int,
+) {
+    companion object {
+        fun resolve(isActive: Boolean): StackHeaderScreenAccessibilityTargets {
+            val importance = StackHeaderScreenActivity.resolve(isActive).accessibilityImportance
+            return StackHeaderScreenAccessibilityTargets(importance, importance)
+        }
     }
 }
 
