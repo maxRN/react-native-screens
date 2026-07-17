@@ -23,4 +23,28 @@ class StackHeaderUpNavigationTest {
             StackHeaderUpNavigation.resolve(canNavigateBack = true, preventNativeDismiss = true),
         )
     }
+
+    @Test
+    fun `Up targets only the associated named native back-stack entry`() {
+        var poppedScreenKey: String? = null
+
+        assertEquals(
+            true,
+            StackHeaderUpNavigation.dispatchNativePop("screen-2") { screenKey ->
+                poppedScreenKey = screenKey
+            },
+        )
+        assertEquals("screen-2", poppedScreenKey)
+    }
+
+    @Test
+    fun `Up does not use an unnamed native back-stack transaction`() {
+        var didPop = false
+
+        assertEquals(
+            false,
+            StackHeaderUpNavigation.dispatchNativePop(null) { didPop = true },
+        )
+        assertEquals(false, didPop)
+    }
 }

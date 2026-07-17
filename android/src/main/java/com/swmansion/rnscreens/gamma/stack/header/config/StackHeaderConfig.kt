@@ -82,11 +82,11 @@ internal class StackHeaderConfig(
     private val rendererDiagnostics = StackHeaderRendererDiagnostics()
 
     internal fun recordRendererResolution(resolution: StackHeaderRendererResolution): Boolean {
-        val shouldReportFallback = rendererDiagnostics.record(resolution)
-        if (::eventEmitter.isInitialized) {
-            eventEmitter.emitOnRendererResolved(rendererDiagnostics.current)
+        val update = rendererDiagnostics.record(resolution)
+        if (update.resolutionChanged && ::eventEmitter.isInitialized) {
+            eventEmitter.emitOnRendererResolved(resolution)
         }
-        return shouldReportFallback
+        return update.shouldReportFallback
     }
 
     override var title: String by Delegates.observable("") { _, old, new ->
@@ -382,7 +382,6 @@ internal class StackHeaderConfig(
     internal fun onViewManagerAddEventEmitters() {
         check(id != NO_ID) { "[RNScreens] StackHeaderConfig must have its tag set when registering event emitters" }
         eventEmitter = StackHeaderConfigEventEmitter(reactContext, id)
-        eventEmitter.emitOnRendererResolved(rendererDiagnostics.current)
     }
 
     // endregion

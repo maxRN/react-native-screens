@@ -197,9 +197,16 @@ internal class StackHeaderCoordinatorLayout(
             StackHeaderUpNavigation.Action.NO_OP -> Unit
             StackHeaderUpNavigation.Action.DISPATCH_PREVENTED -> stackScreen.onNativeDismissPrevented()
             StackHeaderUpNavigation.Action.POP_NATIVE_STACK ->
-                // Use this screen's FragmentManager rather than the activity dispatcher: the latter
-                // may delegate to the host app and close it instead of popping this Stack v5 screen.
-                stackScreen.getAssociatedFragment()?.parentFragmentManager?.popBackStack()
+                stackScreen.getAssociatedFragment()?.let { fragment ->
+                    // Use this screen's keyed transaction rather than the activity dispatcher: the
+                    // latter can close the host app, and an unqualified pop can target a nested host.
+                    StackHeaderUpNavigation.dispatchNativePop(stackScreen.screenKey) { screenKey ->
+                        fragment.parentFragmentManager.popBackStack(
+                            screenKey,
+                            androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE,
+                        )
+                    }
+                }
         }
     }
 
@@ -478,6 +485,16 @@ internal object StackHeaderUpNavigation {
             preventNativeDismiss -> Action.DISPATCH_PREVENTED
             else -> Action.POP_NATIVE_STACK
         }
+
+    /** Dispatches only the current Stack v5 screen's named back-stack transaction. */
+    fun dispatchNativePop(
+        screenKey: String?,
+        popBackStack: (String) -> Unit,
+    ): Boolean {
+        val key = screenKey ?: return false
+        popBackStack(key)
+        return true
+    }
 }
 
 internal enum class StackHeaderComposeActivity(

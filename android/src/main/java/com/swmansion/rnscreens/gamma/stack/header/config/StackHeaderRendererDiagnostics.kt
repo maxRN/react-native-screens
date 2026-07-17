@@ -2,18 +2,25 @@ package com.swmansion.rnscreens.gamma.stack.header.config
 
 /** Tracks the actual renderer for one native header config, not the whole process. */
 internal class StackHeaderRendererDiagnostics {
-    var current = StackHeaderRendererResolution(StackHeaderRenderer.VIEW, StackHeaderRenderer.VIEW)
+    var current: StackHeaderRendererResolution? = null
         private set
 
     private var didReportFallback = false
 
-    /** Returns true only for this config's first production fallback. */
-    fun record(resolution: StackHeaderRendererResolution): Boolean {
+    /** Returns resolution/event and warning changes separately for each header config. */
+    fun record(resolution: StackHeaderRendererResolution): StackHeaderRendererDiagnosticUpdate {
+        val resolutionChanged = current != resolution
         current = resolution
-        if (resolution.fallbackReason == null || didReportFallback) {
-            return false
+        val shouldReportFallback =
+            resolution.fallbackReason != null && !didReportFallback
+        if (shouldReportFallback) {
+            didReportFallback = true
         }
-        didReportFallback = true
-        return true
+        return StackHeaderRendererDiagnosticUpdate(resolutionChanged, shouldReportFallback)
     }
 }
+
+internal data class StackHeaderRendererDiagnosticUpdate(
+    val resolutionChanged: Boolean,
+    val shouldReportFallback: Boolean,
+)
