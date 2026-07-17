@@ -112,10 +112,10 @@ internal sealed class StackHeaderAppBarLayout(
         ): StackHeaderAppBarLayout =
             when (renderer) {
                 StackHeaderRenderer.COMPOSE -> {
-                    require(type == StackHeaderType.SMALL) {
-                        "[RNScreens] The Compose header renderer currently supports only small app bars."
+                    require(type != StackHeaderType.LARGE) {
+                        "[RNScreens] The Compose header renderer supports only small and medium app bars."
                     }
-                    StackHeaderComposeAppBarLayout(context)
+                    StackHeaderComposeAppBarLayout(context, type)
                 }
                 StackHeaderRenderer.VIEW ->
                     when (type) {

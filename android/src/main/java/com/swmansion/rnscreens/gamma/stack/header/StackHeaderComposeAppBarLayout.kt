@@ -8,53 +8,98 @@ package com.swmansion.rnscreens.gamma.stack.header
 import android.content.Context
 import android.os.Build
 import android.view.View
+import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.ImageView
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.swmansion.rnscreens.ext.detachFromCurrentParent
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigurationProviding
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
+import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderType
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderComposeActionPlanner
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuConfig
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementConfig
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementOptions
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuItemConfig
+import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarUpdate
 
+/**
+ * A navigation-owned Compose app bar. CoordinatorLayout remains the nested-scroll authority:
+ * it changes this AppBarLayout's offset from the RN scrolling child, and that offset is copied
+ * to Material3's [TopAppBarState] on the Android UI thread. No scroll progress crosses the JS
+ * bridge and recomposition never replaces this view or its per-screen state.
+ */
 internal class StackHeaderComposeAppBarLayout(
     context: Context,
+    private val type: StackHeaderType,
 ) : StackHeaderAppBarLayout(context) {
     override val renderer = StackHeaderRenderer.COMPOSE
 
-    // The View renderer's coordinator owns toolbar menus. Compose configurations
-    // with menus resolve back to that renderer, so this toolbar is never attached.
+    // Stack v5 still accesses a Toolbar for its View path. Compose owns the rendered header,
+    // so this placeholder is intentionally never attached.
     override val toolbar = MaterialToolbar(context)
 
     private var title by mutableStateOf("")
     private var leadingView by mutableStateOf<View?>(null)
     private var showUpButton by mutableStateOf(false)
     private var onNavigationIconClick by mutableStateOf<() -> Unit>({})
+    private var toolbarMenu by mutableStateOf(StackHeaderToolbarMenuConfig(emptyList(), emptyList()))
+    private var onMenuItemClick by mutableStateOf<(String) -> Unit>({})
+    private var mediumTopAppBarState: TopAppBarState? = null
 
     private val composeView =
         ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
+            if (type == StackHeaderType.MEDIUM) {
+                // Material3's medium bar collapses to the standard 64dp small app bar. This is
+                // the AppBarLayout scroll range; Material3 itself owns the actual dimensions.
+                minimumHeight = (64 * resources.displayMetrics.density).toInt()
+                layoutParams =
+                    AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                        scrollFlags =
+                            AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                            AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS
+                    }
+            } else {
+                layoutParams = AppBarLayout.LayoutParams(MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+            }
             setContent {
                 val dark = isSystemInDarkTheme()
                 val colorScheme =
@@ -63,53 +108,51 @@ internal class StackHeaderComposeAppBarLayout(
                     } else {
                         if (dark) darkColorScheme() else lightColorScheme()
                     }
+                val mediumScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+                SideEffect {
+                    if (type == StackHeaderType.MEDIUM) {
+                        mediumTopAppBarState = mediumScrollBehavior.state
+                    }
+                }
 
                 MaterialExpressiveTheme(colorScheme = colorScheme) {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = title,
-                                modifier = Modifier.semantics { heading() },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                    when (type) {
+                        StackHeaderType.SMALL ->
+                            TopAppBar(
+                                title = { titleContent() },
+                                navigationIcon = { navigationIconContent() },
+                                actions = { actionsContent() },
                             )
-                        },
-                        navigationIcon = {
-                            val customLeadingView = leadingView
-                            when {
-                                customLeadingView != null ->
-                                    AndroidView(
-                                        factory = {
-                                            customLeadingView.detachFromCurrentParent()
-                                            customLeadingView
-                                        },
-                                    )
-                                showUpButton ->
-                                    IconButton(onClick = onNavigationIconClick) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription =
-                                                stringResource(androidx.appcompat.R.string.abc_action_bar_up_description),
-                                        )
-                                    }
-                            }
-                        },
-                    )
+
+                        StackHeaderType.MEDIUM ->
+                            MediumTopAppBar(
+                                title = { titleContent() },
+                                navigationIcon = { navigationIconContent() },
+                                actions = { actionsContent() },
+                                scrollBehavior = mediumScrollBehavior,
+                            )
+
+                        StackHeaderType.LARGE -> error("Compose does not support large app bars.")
+                    }
                 }
             }
         }
 
     init {
         fitsSystemWindows = false
-        addView(composeView, LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        addView(composeView)
     }
 
     fun applyConfiguration(
         config: StackHeaderConfigurationProviding,
         canNavigateBack: Boolean,
         onNavigationIconClick: () -> Unit,
+        onMenuItemClick: (String) -> Unit,
     ) {
         title = config.title
+        toolbarMenu = config.toolbarMenu
+        this.onMenuItemClick = onMenuItemClick
         updateNavigation(config, canNavigateBack, onNavigationIconClick)
     }
 
@@ -125,6 +168,74 @@ internal class StackHeaderComposeAppBarLayout(
         updateNavigation(config, canNavigateBack, onNavigationIconClick)
     }
 
+    fun applyToolbarMenu(menu: StackHeaderToolbarMenuConfig) {
+        toolbarMenu = menu
+    }
+
+    /** Returns a validation reason without mutating the mounted action row when rejected. */
+    fun applyMenuElementUpdate(
+        id: String,
+        options: StackHeaderToolbarMenuElementOptions,
+    ): String? {
+        val updated = toolbarMenu.updatingItem(id, options)
+        val reason = StackHeaderComposeActionPlanner.unsupportedReason(updated)
+        if (reason == null) {
+            toolbarMenu = updated
+        }
+        return reason
+    }
+
+    fun onCoordinatorOffsetChanged(offset: Int) {
+        // The native AppBarLayout offset is negative while collapsed, precisely matching
+        // TopAppBarState.heightOffset. The assignment is UI-thread-only and direct for drag,
+        // while AppBarLayout continues to settle flings using its platform animation policy.
+        mediumTopAppBarState?.heightOffset = offset.toFloat()
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun titleContent() {
+        Text(
+            text = title,
+            modifier = Modifier.semantics { heading() },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun navigationIconContent() {
+        val customLeadingView = leadingView
+        when {
+            customLeadingView != null ->
+                AndroidView(
+                    factory = {
+                        customLeadingView.detachFromCurrentParent()
+                        customLeadingView
+                    },
+                )
+
+            showUpButton ->
+                IconButton(onClick = onNavigationIconClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription =
+                            stringResource(androidx.appcompat.R.string.abc_action_bar_up_description),
+                    )
+                }
+        }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun actionsContent() {
+        val plan = StackHeaderComposeActionPlanner.plan(toolbarMenu)
+        plan.direct.forEach { action ->
+            key(action.id) { composeHeaderAction(action.item, onMenuItemClick) }
+        }
+        if (plan.overflow.isNotEmpty()) {
+            composeHeaderOverflow(plan.overflow.map { it.item }, onMenuItemClick)
+        }
+    }
+
     private fun updateNavigation(
         config: StackHeaderConfigurationProviding,
         canNavigateBack: Boolean,
@@ -135,3 +246,90 @@ internal class StackHeaderComposeAppBarLayout(
         this.onNavigationIconClick = onNavigationIconClick
     }
 }
+
+@androidx.compose.runtime.Composable
+private fun composeHeaderAction(
+    item: StackHeaderToolbarMenuItemConfig,
+    onClick: (String) -> Unit,
+) {
+    IconButton(
+        onClick = { onClick(item.id) },
+        enabled = !item.disabled,
+        modifier =
+            Modifier.semantics {
+                contentDescription = item.tooltipText.orEmpty()
+                selected = item.initialToggleState
+            },
+    ) {
+        AndroidView(
+            factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
+            update = { it.setImageDrawable(item.icon) },
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun composeHeaderOverflow(
+    items: List<StackHeaderToolbarMenuItemConfig>,
+    onClick: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    IconButton(onClick = { expanded = true }) {
+        Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More options")
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        items.forEach { item ->
+            key(item.id) {
+                DropdownMenuItem(
+                    text = { Text(item.title.orEmpty()) },
+                    onClick = {
+                        expanded = false
+                        onClick(item.id)
+                    },
+                    enabled = !item.disabled,
+                )
+            }
+        }
+    }
+}
+
+private fun StackHeaderToolbarMenuConfig.updatingItem(
+    id: String,
+    options: StackHeaderToolbarMenuElementOptions,
+): StackHeaderToolbarMenuConfig {
+    var changed = false
+    val updatedChildren =
+        children.map { element ->
+            if (element !is StackHeaderToolbarMenuElementConfig.MenuItem || element.item.id != id) {
+                element
+            } else {
+                changed = true
+                StackHeaderToolbarMenuElementConfig.MenuItem(element.item.with(options))
+            }
+        }
+    return if (changed) copy(children = updatedChildren) else this
+}
+
+private fun StackHeaderToolbarMenuItemConfig.with(options: StackHeaderToolbarMenuElementOptions): StackHeaderToolbarMenuItemConfig =
+    copy(
+        title = options.title.update(title),
+        titleCondensed = options.titleCondensed.update(titleCondensed),
+        tooltipText = options.tooltipText.update(tooltipText),
+        hidden = options.hidden ?: hidden,
+        disabled = options.disabled ?: disabled,
+        showAsAction = options.showAsAction ?: showAsAction,
+        icon = options.icon.update(icon),
+        iconTintColorNormal = options.iconTintColorNormal.update(iconTintColorNormal),
+        iconTintColorPressed = options.iconTintColorPressed.update(iconTintColorPressed),
+        iconTintColorFocused = options.iconTintColorFocused.update(iconTintColorFocused),
+        iconTintColorDisabled = options.iconTintColorDisabled.update(iconTintColorDisabled),
+        initialToggleState = options.checked ?: initialToggleState,
+    )
+
+private fun <T> StackHeaderToolbarUpdate<T>?.update(current: T?): T? =
+    when (this) {
+        null -> current
+        StackHeaderToolbarUpdate.Reset -> null
+        is StackHeaderToolbarUpdate.Set -> value
+    }

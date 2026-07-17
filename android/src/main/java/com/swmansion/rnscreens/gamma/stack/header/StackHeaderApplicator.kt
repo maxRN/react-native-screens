@@ -53,6 +53,7 @@ internal class StackHeaderApplicator(
         renderer: StackHeaderRenderer,
         canNavigateBack: Boolean,
         onNavigationIconClick: () -> Unit,
+        onMenuItemClick: (String) -> Unit,
     ): StackHeaderAppBarLayout {
         val appBar = StackHeaderAppBarLayout.create(wrappedContext, config.type, renderer)
 
@@ -66,7 +67,7 @@ internal class StackHeaderApplicator(
 
         // Make sure that we receive insets, necessary when changing header mode in runtime.
         appBar.requestApplyInsets()
-        populateAppBar(appBar, config, canNavigateBack, onNavigationIconClick)
+        populateAppBar(appBar, config, canNavigateBack, onNavigationIconClick, onMenuItemClick)
         maybeApplyRTLCollapsingToolbarLayoutWorkaround(coordinatorLayout, config, appBar)
         if (appBar.renderer == StackHeaderRenderer.VIEW) {
             appBar.toolbar.requestLayout()
@@ -84,9 +85,10 @@ internal class StackHeaderApplicator(
         config: StackHeaderConfigurationProviding,
         canNavigateBack: Boolean,
         onNavigationIconClick: () -> Unit,
+        onMenuItemClick: (String) -> Unit,
     ) {
         if (appBar is StackHeaderComposeAppBarLayout) {
-            appBar.applyConfiguration(config, canNavigateBack, onNavigationIconClick)
+            appBar.applyConfiguration(config, canNavigateBack, onNavigationIconClick, onMenuItemClick)
             return
         }
 

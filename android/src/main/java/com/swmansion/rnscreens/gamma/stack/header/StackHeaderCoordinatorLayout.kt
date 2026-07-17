@@ -8,10 +8,12 @@ import android.widget.FrameLayout
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import com.facebook.react.bridge.JSApplicationIllegalArgumentException
 import com.facebook.react.bridge.ReactContext
 import com.google.android.material.R
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
+import com.swmansion.rnscreens.BuildConfig
 import com.swmansion.rnscreens.gamma.stack.header.config.OnHeaderConfigurationAttachListener
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigurationObserver
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderConfigurationProviding
@@ -73,6 +75,16 @@ internal class StackHeaderCoordinatorLayout(
                 options: StackHeaderToolbarMenuElementOptions,
             ) {
                 val appBar = appBarLayout ?: return
+                if (appBar is StackHeaderComposeAppBarLayout) {
+                    appBar.applyMenuElementUpdate(id, options)?.let { reason ->
+                        val message = "[RNScreens] Cannot apply Compose Stack header action update: $reason."
+                        if (BuildConfig.DEBUG) {
+                            throw JSApplicationIllegalArgumentException(message)
+                        }
+                        Log.w(TAG, "$message Keeping the last supported action state.")
+                    }
+                    return
+                }
                 if (appBar.renderer != StackHeaderRenderer.VIEW) return
                 val toolbar = appBar.toolbar
                 applicator.updateToolbarMenuElement(toolbar, toolbarMenuForwardIdMap, id, options)
@@ -87,7 +99,8 @@ internal class StackHeaderCoordinatorLayout(
     // region Layout callbacks
 
     private val appBarOffsetListener =
-        AppBarLayout.OnOffsetChangedListener { _, _ ->
+        AppBarLayout.OnOffsetChangedListener { appBar, offset ->
+            (appBar as? StackHeaderComposeAppBarLayout)?.onCoordinatorOffsetChanged(offset)
             onMaybeHeaderLayoutChanged()
         }
 
@@ -200,6 +213,7 @@ internal class StackHeaderCoordinatorLayout(
                     renderer,
                     canNavigateBack,
                     onNavigationIconClick,
+                    onMenuItemClick = { id -> currentDelegate?.onMenuItemClicked(id) },
                 )
             appBarLayout = appBar
             attachAppBarListeners(appBar)
@@ -228,7 +242,10 @@ internal class StackHeaderCoordinatorLayout(
             }
 
             if (provider.invalidationFlags.containsAny(StackHeaderInvalidationFlags.TOOLBAR_MENU)) {
-                if (appBar.renderer != StackHeaderRenderer.VIEW) {
+                if (appBar is StackHeaderComposeAppBarLayout) {
+                    appBar.applyToolbarMenu(provider.toolbarMenu)
+                    provider.clearInvalidationFlags(StackHeaderInvalidationFlags.TOOLBAR_MENU)
+                } else if (appBar.renderer != StackHeaderRenderer.VIEW) {
                     provider.clearInvalidationFlags(StackHeaderInvalidationFlags.TOOLBAR_MENU)
                     onMaybeHeaderLayoutChanged()
                     return
