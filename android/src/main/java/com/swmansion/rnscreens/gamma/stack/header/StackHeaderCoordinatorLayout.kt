@@ -180,7 +180,7 @@ internal class StackHeaderCoordinatorLayout(
     private val applicator = StackHeaderApplicator(wrappedContext)
 
     private var appBarLayout: StackHeaderAppBarLayout? = null
-    private var isComposeHeaderActive = false
+    private var isScreenActive = false
 
     private var toolbarMenuForwardIdMap = emptyMap<String, Int>()
     private var toolbarMenuGroupMetadata = StackHeaderToolbarMenuGroupMetadata.EMPTY
@@ -234,7 +234,7 @@ internal class StackHeaderCoordinatorLayout(
                     onMenuItemClick = { id -> currentDelegate?.onMenuItemClicked(id) },
                 )
             appBarLayout = appBar
-            applyComposeHeaderActivity(appBar)
+            applyScreenActivity(appBar)
             attachAppBarListeners(appBar)
 
             // If config needs to be rebuilt, all other flags must be invalidated as well.
@@ -313,20 +313,22 @@ internal class StackHeaderCoordinatorLayout(
     // endregion
 
     /**
-     * Stack fragments stay mounted for native transitions, but an inactive fragment must not draw
-     * or expose a Compose header. Its content remains mounted for the native transition surface.
+     * Stack fragments stay mounted for native transitions. An inactive screen keeps drawing for the
+     * transition surface, but its header and content are removed from the accessibility tree.
      */
-    internal fun setComposeHeaderActive(isActive: Boolean) {
-        if (isComposeHeaderActive == isActive) return
-        isComposeHeaderActive = isActive
-        appBarLayout?.let(::applyComposeHeaderActivity)
+    internal fun setScreenActive(isActive: Boolean) {
+        isScreenActive = isActive
+        stackScreenWrapper.importantForAccessibility =
+            StackHeaderScreenActivity.resolve(isActive).accessibilityImportance
+        appBarLayout?.let(::applyScreenActivity)
     }
 
-    private fun applyComposeHeaderActivity(appBar: StackHeaderAppBarLayout) {
-        if (appBar.renderer != StackHeaderRenderer.COMPOSE) return
-        val activity = StackHeaderComposeActivity.resolve(isComposeHeaderActive)
-        appBar.visibility = activity.viewVisibility
+    private fun applyScreenActivity(appBar: StackHeaderAppBarLayout) {
+        val activity = StackHeaderAppBarActivity.resolve(appBar.renderer, isScreenActive)
         appBar.importantForAccessibility = activity.accessibilityImportance
+        if (appBar.renderer == StackHeaderRenderer.COMPOSE) {
+            appBar.visibility = activity.viewVisibility
+        }
     }
 
     // region Group selection
@@ -507,5 +509,39 @@ internal enum class StackHeaderComposeActivity(
 
     companion object {
         fun resolve(isActive: Boolean): StackHeaderComposeActivity = if (isActive) VISIBLE else HIDDEN
+    }
+}
+
+internal enum class StackHeaderScreenActivity(
+    val accessibilityImportance: Int,
+) {
+    ACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO),
+    INACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS),
+    ;
+
+    companion object {
+        fun resolve(isActive: Boolean): StackHeaderScreenActivity = if (isActive) ACTIVE else INACTIVE
+    }
+}
+
+internal data class StackHeaderAppBarActivity(
+    val viewVisibility: Int,
+    val accessibilityImportance: Int,
+) {
+    companion object {
+        fun resolve(
+            renderer: StackHeaderRenderer,
+            isActive: Boolean,
+        ): StackHeaderAppBarActivity {
+            val accessibilityImportance = StackHeaderScreenActivity.resolve(isActive).accessibilityImportance
+            val viewVisibility =
+                if (renderer == StackHeaderRenderer.COMPOSE) {
+                    StackHeaderComposeActivity.resolve(isActive).viewVisibility
+                } else {
+                    // Retained View headers preserve their existing transition visuals.
+                    View.VISIBLE
+                }
+            return StackHeaderAppBarActivity(viewVisibility, accessibilityImportance)
+        }
     }
 }
