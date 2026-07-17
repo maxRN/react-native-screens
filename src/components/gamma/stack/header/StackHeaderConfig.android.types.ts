@@ -669,5 +669,7 @@ export interface StackHeaderConfigPropsAndroid {
    *
    * @platform android
    */
-  onRendererResolved?: ((event: StackHeaderRendererResolvedEventAndroid) => void) | undefined;
+  onRendererResolved?:
+    | ((event: StackHeaderRendererResolvedEventAndroid) => void)
+    | undefined;
 }

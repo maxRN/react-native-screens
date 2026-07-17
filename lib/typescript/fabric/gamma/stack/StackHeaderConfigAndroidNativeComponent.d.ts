@@ -9,6 +9,11 @@ export type StackHeaderToolbarMenuGroupSelectionChangeEventAndroid = Readonly<{
     groupId: string;
     selectedIds: string[];
 }>;
+export type StackHeaderRendererResolvedEventAndroid = Readonly<{
+    requestedRenderer: string;
+    actualRenderer: string;
+    fallbackReason: string | null;
+}>;
 type StackHeaderToolbarMenuItemShowAsActionAndroid = 'always' | 'alwaysWithText' | 'ifRoom' | 'ifRoomWithText' | 'never';
 type StackHeaderToolbarMenuItemTypeAndroid = 'action' | 'toggle' | 'automatic';
 export interface StackHeaderToolbarMenuItemBaseAndroid {
@@ -67,6 +72,7 @@ export interface NativeProps extends ViewProps {
     toolbarMenuGroupDividerEnabled?: CT.WithDefault<boolean, false>;
     onToolbarMenuItemPress?: CT.DirectEventHandler<StackHeaderToolbarMenuItemPressEventAndroid> | undefined;
     onToolbarMenuGroupSelectionChange?: CT.DirectEventHandler<StackHeaderToolbarMenuGroupSelectionChangeEventAndroid> | undefined;
+    onRendererResolved?: CT.DirectEventHandler<StackHeaderRendererResolvedEventAndroid> | undefined;
 }
 type ComponentType = HostComponent<NativeProps>;
 export type StackHeaderToolbarMenuElementOptionsAndroid = Partial<Omit<StackHeaderToolbarMenuItemBaseAndroid, 'id'>> & {

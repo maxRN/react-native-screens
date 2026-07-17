@@ -24,8 +24,8 @@ export type StackHeaderToolbarMenuGroupSelectionChangeEventAndroid = Readonly<{
 }>;
 
 export type StackHeaderRendererResolvedEventAndroid = Readonly<{
-  requestedRenderer: StackHeaderRendererAndroid;
-  actualRenderer: StackHeaderRendererAndroid;
+  requestedRenderer: string;
+  actualRenderer: string;
   fallbackReason: string | null;
 }>;
 

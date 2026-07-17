@@ -2,6 +2,11 @@ import type { ReactElement } from 'react';
 import type { ColorValue } from 'react-native';
 import type { StackHeaderSubviewCollapseModeAndroid } from './android/StackHeaderSubview.android.types';
 import type { PlatformIconAndroid } from '../../../../types';
+export type StackHeaderRendererResolvedEventAndroid = Readonly<{
+    requestedRenderer: StackHeaderRendererAndroid;
+    actualRenderer: StackHeaderRendererAndroid;
+    fallbackReason: string | null;
+}>;
 export type StackHeaderTypeAndroid = 'small' | 'medium' | 'large';
 export type StackHeaderRendererAndroid = 'view' | 'compose';
 export type StackHeaderBackgroundSubviewCollapseModeAndroid = StackHeaderSubviewCollapseModeAndroid;
@@ -422,8 +427,8 @@ export interface StackHeaderConfigPropsAndroid {
      *
      * @remarks
      * The `view` renderer uses stable `MDC-Android` app bars. The `compose`
-     * renderer currently supports the small Material 3 Expressive app bar and
-     * falls back to `view` for medium and large app bars.
+     * renderer supports small pinned and medium enter-always Material 3
+     * Expressive app bars, and falls back to `view` for large app bars.
      *
      * @see {@link https://m3.material.io/components/app-bars/overview|Material Design 3: App bars}
      *
@@ -623,5 +628,12 @@ export interface StackHeaderConfigPropsAndroid {
      * @supported API 28 or higher
      */
     toolbarMenuGroupDividerEnabled?: boolean | undefined;
+    /**
+     * Reports the renderer actually mounted for this header and its production
+     * Compose fallback reason, if any. This is intended for development diagnostics.
+     *
+     * @platform android
+     */
+    onRendererResolved?: ((event: StackHeaderRendererResolvedEventAndroid) => void) | undefined;
 }
 //# sourceMappingURL=StackHeaderConfig.android.types.d.ts.map

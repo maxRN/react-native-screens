@@ -35,6 +35,7 @@ import type {
   StackHeaderToolbarMenuItemAndroid,
   StackHeaderToolbarMenuItemBaseAndroid,
   StackHeaderRendererAndroid,
+  StackHeaderRendererResolvedEventAndroid as PublicStackHeaderRendererResolvedEventAndroid,
   StackHeaderTypeAndroid,
   StackHeaderToolbarMenuElementOptionsAndroid,
   StackHeaderToolbarMenuGroupAndroid,
@@ -95,7 +96,13 @@ function StackHeaderConfig(
   const handleRendererResolved = (
     event: NativeSyntheticEvent<StackHeaderRendererResolvedEventAndroid>,
   ) => {
-    onRendererResolved?.(event.nativeEvent);
+    const { requestedRenderer, actualRenderer, fallbackReason } =
+      event.nativeEvent;
+    onRendererResolved?.({
+      requestedRenderer: requestedRenderer as StackHeaderRendererAndroid,
+      actualRenderer: actualRenderer as StackHeaderRendererAndroid,
+      fallbackReason,
+    } satisfies PublicStackHeaderRendererResolvedEventAndroid);
   };
 
   const backButtonIconProps = parseBackButtonIconToNativeProps(backButtonIcon);
