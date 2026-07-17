@@ -31,7 +31,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -68,8 +68,9 @@ import kotlin.math.roundToInt
 /**
  * A navigation-owned Compose app bar. CoordinatorLayout remains the nested-scroll authority:
  * it changes this AppBarLayout's offset from the RN scrolling child, and that offset is copied
- * to Material3's [TopAppBarState] on the Android UI thread. No scroll progress crosses the JS
- * bridge and recomposition never replaces this view or its per-screen state.
+ * as a normalized collapse fraction to Material3's [TopAppBarState] on the Android UI thread.
+ * No scroll progress crosses the JS bridge and recomposition never replaces this view or its
+ * per-screen state.
  */
 internal class StackHeaderComposeAppBarLayout(
     context: Context,
@@ -88,6 +89,7 @@ internal class StackHeaderComposeAppBarLayout(
     private var toolbarMenu by mutableStateOf(StackHeaderToolbarMenuConfig(emptyList(), emptyList()))
     private var onMenuItemClick by mutableStateOf<(String) -> Unit>({})
     private var mediumTopAppBarState: TopAppBarState? = null
+    private var coordinatorOffsetPx = 0
 
     private val composeView =
         ComposeView(context).apply {
@@ -102,9 +104,10 @@ internal class StackHeaderComposeAppBarLayout(
                     }
                 val mediumScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-                SideEffect {
+                LaunchedEffect(mediumScrollBehavior.state.heightOffsetLimit) {
                     if (type == StackHeaderType.MEDIUM) {
                         mediumTopAppBarState = mediumScrollBehavior.state
+                        synchronizeMediumTopAppBarOffset()
                     }
                 }
 
@@ -150,6 +153,9 @@ internal class StackHeaderComposeAppBarLayout(
     init {
         fitsSystemWindows = false
         addView(appBarContent)
+        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            synchronizeMediumTopAppBarOffset()
+        }
     }
 
     fun applyConfiguration(
@@ -194,10 +200,20 @@ internal class StackHeaderComposeAppBarLayout(
     }
 
     fun onCoordinatorOffsetChanged(offset: Int) {
-        // The native AppBarLayout offset is negative while collapsed, precisely matching
-        // TopAppBarState.heightOffset. The assignment is UI-thread-only and direct for drag,
-        // while AppBarLayout continues to settle flings using its platform animation policy.
-        mediumTopAppBarState?.heightOffset = offset.toFloat()
+        coordinatorOffsetPx = offset
+        synchronizeMediumTopAppBarOffset()
+    }
+
+    private fun synchronizeMediumTopAppBarOffset() {
+        val state = mediumTopAppBarState ?: return
+        // AppBarLayout and Material3 reserve different collapsed heights. Drive Material3 by
+        // the native collapse fraction so its expanded and collapsed states land together.
+        state.heightOffset =
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = coordinatorOffsetPx,
+                appBarTotalScrollRangePx = totalScrollRange,
+                composeHeightOffsetLimitPx = state.heightOffsetLimit,
+            )
     }
 
     @androidx.compose.runtime.Composable
@@ -295,6 +311,19 @@ internal object StackHeaderMediumAppBarMetrics {
         density: Float,
         topInsetPx: Int,
     ): Int = max(0, expandedHeightPx - collapsedHeightPx(density, topInsetPx))
+
+    fun composeHeightOffset(
+        coordinatorOffsetPx: Int,
+        appBarTotalScrollRangePx: Int,
+        composeHeightOffsetLimitPx: Float,
+    ): Float {
+        if (appBarTotalScrollRangePx <= 0) {
+            return 0f
+        }
+        val collapsedFraction =
+            (-coordinatorOffsetPx.toFloat() / appBarTotalScrollRangePx).coerceIn(0f, 1f)
+        return composeHeightOffsetLimitPx * collapsedFraction
+    }
 }
 
 /**

@@ -42,6 +42,66 @@ class StackHeaderMediumAppBarMetricsTest {
     }
 
     @Test
+    fun `Compose app bar reaches its own collapsed limit with the native app bar`() {
+        assertEquals(
+            -126f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -168,
+                appBarTotalScrollRangePx = 168,
+                composeHeightOffsetLimitPx = -126f,
+            ),
+        )
+    }
+
+    @Test
+    fun `a restored native collapse is applied after Compose initializes its limit`() {
+        assertEquals(
+            0f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -168,
+                appBarTotalScrollRangePx = 168,
+                composeHeightOffsetLimitPx = 0f,
+            ),
+        )
+        assertEquals(
+            -126f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -168,
+                appBarTotalScrollRangePx = 168,
+                composeHeightOffsetLimitPx = -126f,
+            ),
+        )
+    }
+
+    @Test
+    fun `Compose app bar tracks the native collapse fraction and clamps overscroll`() {
+        assertEquals(
+            -63f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -84,
+                appBarTotalScrollRangePx = 168,
+                composeHeightOffsetLimitPx = -126f,
+            ),
+        )
+        assertEquals(
+            -126f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -200,
+                appBarTotalScrollRangePx = 168,
+                composeHeightOffsetLimitPx = -126f,
+            ),
+        )
+        assertEquals(
+            0f,
+            StackHeaderMediumAppBarMetrics.composeHeightOffset(
+                coordinatorOffsetPx = -168,
+                appBarTotalScrollRangePx = 0,
+                composeHeightOffsetLimitPx = -126f,
+            ),
+        )
+    }
+
+    @Test
     fun `internal AppBar flags retain the collapsed height without snapping`() {
         val flags = StackHeaderMediumAppBarContract.scrollingFlags
 
