@@ -58,6 +58,22 @@ class StackHeaderMediumAppBarMetricsTest {
     }
 
     @Test
+    fun `Compose content counter-translation preserves the collapsed row screen position`() {
+        val insetTopPx = StackHeaderMediumAppBarMetrics.collapsedRowTopPx(topInsetPx = 128)
+
+        assertEquals(0, StackHeaderMediumAppBarMetrics.composeContentTranslationYPx(coordinatorOffsetPx = 0))
+        assertEquals(63, StackHeaderMediumAppBarMetrics.composeContentTranslationYPx(coordinatorOffsetPx = -63))
+        assertEquals(126, StackHeaderMediumAppBarMetrics.composeContentTranslationYPx(coordinatorOffsetPx = -126))
+        assertEquals(
+            insetTopPx,
+            -126 +
+                StackHeaderMediumAppBarMetrics.composeContentTranslationYPx(
+                    coordinatorOffsetPx = -126,
+                ) + insetTopPx,
+        )
+    }
+
+    @Test
     fun `scroll range cannot collapse below the collapsed height`() {
         assertEquals(
             168,

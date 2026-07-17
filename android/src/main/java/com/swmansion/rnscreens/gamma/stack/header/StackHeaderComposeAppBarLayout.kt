@@ -208,6 +208,13 @@ internal class StackHeaderComposeAppBarLayout(
 
     fun onCoordinatorOffsetChanged(offset: Int) {
         coordinatorOffsetPx = offset
+        if (type == StackHeaderType.MEDIUM) {
+            // AppBarLayout translates the entire child while collapsing. Counter-translate the
+            // Compose content so its inset-safe small row stays in screen coordinates; the
+            // parent continues to clip away the expanded portion as its bottom moves upward.
+            composeView.translationY =
+                StackHeaderMediumAppBarMetrics.composeContentTranslationYPx(offset).toFloat()
+        }
         synchronizeMediumTopAppBarOffset()
     }
 
@@ -348,6 +355,9 @@ internal object StackHeaderMediumAppBarMetrics {
         dispatchedTopInsetPx: Int,
         rootTopInsetPx: Int,
     ): Int = max(collapsedRowTopPx(previousTopInsetPx), stableTopInsetPx(dispatchedTopInsetPx, rootTopInsetPx))
+
+    /** Keeps the Compose small row pinned while AppBarLayout translates its direct child. */
+    fun composeContentTranslationYPx(coordinatorOffsetPx: Int): Int = max(0, -coordinatorOffsetPx)
 
     fun totalScrollRangePx(
         expandedHeightPx: Int,
