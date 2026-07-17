@@ -302,7 +302,11 @@ private class StackHeaderMediumAppBarContainer(
                     ?.getInsetsIgnoringVisibility(insetTypes)
                     ?.top ?: 0
             val nextTopInset =
-                StackHeaderMediumAppBarMetrics.stableTopInsetPx(dispatchedTopInset, rootTopInset)
+                StackHeaderMediumAppBarMetrics.retainedTopInsetPx(
+                    previousTopInsetPx = topInsetPx,
+                    dispatchedTopInsetPx = dispatchedTopInset,
+                    rootTopInsetPx = rootTopInset,
+                )
             if (topInsetPx != nextTopInset) {
                 topInsetPx = nextTopInset
                 onTopInsetChanged(topInsetPx)
@@ -334,6 +338,16 @@ internal object StackHeaderMediumAppBarMetrics {
         dispatchedTopInsetPx: Int,
         rootTopInsetPx: Int,
     ): Int = max(collapsedRowTopPx(dispatchedTopInsetPx), collapsedRowTopPx(rootTopInsetPx))
+
+    /**
+     * AppBarLayout can report zero from every descendant inset source after collapsing. Keep the
+     * last safe top for this header instance; rebuilding the header starts a fresh inset lifetime.
+     */
+    fun retainedTopInsetPx(
+        previousTopInsetPx: Int,
+        dispatchedTopInsetPx: Int,
+        rootTopInsetPx: Int,
+    ): Int = max(collapsedRowTopPx(previousTopInsetPx), stableTopInsetPx(dispatchedTopInsetPx, rootTopInsetPx))
 
     fun totalScrollRangePx(
         expandedHeightPx: Int,

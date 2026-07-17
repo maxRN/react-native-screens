@@ -46,6 +46,18 @@ class StackHeaderMediumAppBarMetricsTest {
     }
 
     @Test
+    fun `collapsed inset dispatch cannot erase the header safe area`() {
+        assertEquals(
+            128,
+            StackHeaderMediumAppBarMetrics.retainedTopInsetPx(
+                previousTopInsetPx = 128,
+                dispatchedTopInsetPx = 0,
+                rootTopInsetPx = 0,
+            ),
+        )
+    }
+
+    @Test
     fun `scroll range cannot collapse below the collapsed height`() {
         assertEquals(
             168,
