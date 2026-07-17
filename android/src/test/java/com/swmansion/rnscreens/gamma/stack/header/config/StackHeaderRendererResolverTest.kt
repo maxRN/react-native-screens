@@ -5,16 +5,33 @@ import org.junit.Test
 
 class StackHeaderRendererResolverTest {
     @Test
-    fun `selects Compose for supported small and medium app bars`() {
-        listOf(StackHeaderType.SMALL, StackHeaderType.MEDIUM).forEach { type ->
-            val result =
-                StackHeaderRendererResolver.resolve(
-                    requested = StackHeaderRenderer.COMPOSE,
-                    capabilities = StackHeaderRendererCapabilities(type = type),
-                )
+    fun `selects Compose for a supported small app bar`() {
+        val result =
+            StackHeaderRendererResolver.resolve(
+                requested = StackHeaderRenderer.COMPOSE,
+                capabilities = StackHeaderRendererCapabilities(type = StackHeaderType.SMALL),
+            )
 
-            assertEquals(StackHeaderRenderer.COMPOSE, result)
-        }
+        assertEquals(StackHeaderRenderer.COMPOSE, result)
+    }
+
+    @Test
+    fun `selects Compose for the medium enterAlways scroll profile`() {
+        val result =
+            StackHeaderRendererResolver.resolve(
+                requested = StackHeaderRenderer.COMPOSE,
+                capabilities =
+                    StackHeaderRendererCapabilities(
+                        type = StackHeaderType.MEDIUM,
+                        scrollFlags =
+                            StackHeaderScrollFlags(
+                                scroll = true,
+                                enterAlways = true,
+                            ),
+                    ),
+            )
+
+        assertEquals(StackHeaderRenderer.COMPOSE, result)
     }
 
     @Test
@@ -41,7 +58,23 @@ class StackHeaderRendererResolverTest {
                 StackHeaderRendererCapabilities(type = StackHeaderType.SMALL, hasToolbarMenuGroupDividers = true),
                 StackHeaderRendererCapabilities(type = StackHeaderType.SMALL, hasCustomBackIcon = true),
                 StackHeaderRendererCapabilities(type = StackHeaderType.SMALL, hasCustomBackTint = true),
-                StackHeaderRendererCapabilities(type = StackHeaderType.SMALL, hasScrollFlags = true),
+                StackHeaderRendererCapabilities(
+                    type = StackHeaderType.SMALL,
+                    scrollFlags = StackHeaderScrollFlags(scroll = true),
+                ),
+                StackHeaderRendererCapabilities(
+                    type = StackHeaderType.MEDIUM,
+                    scrollFlags =
+                        StackHeaderScrollFlags(
+                            scroll = true,
+                            exitUntilCollapsed = true,
+                            snap = true,
+                        ),
+                ),
+                StackHeaderRendererCapabilities(
+                    type = StackHeaderType.MEDIUM,
+                    scrollFlags = StackHeaderScrollFlags(enterAlways = true),
+                ),
             )
 
         unsupported.forEach { capabilities ->
@@ -58,7 +91,11 @@ class StackHeaderRendererResolverTest {
             StackHeaderRenderer.VIEW,
             StackHeaderRendererResolver.resolve(
                 requested = StackHeaderRenderer.COMPOSE,
-                capabilities = StackHeaderRendererCapabilities(type = StackHeaderType.MEDIUM),
+                capabilities =
+                    StackHeaderRendererCapabilities(
+                        type = StackHeaderType.MEDIUM,
+                        scrollFlags = StackHeaderScrollFlags(scroll = true, enterAlways = true),
+                    ),
                 actionMenuUnsupportedReason = "duplicate action id 'bookmark'",
             ),
         )

@@ -33,6 +33,7 @@ import type {
   StackHeaderToolbarMenuElementAndroid,
   StackHeaderToolbarMenuItemAndroid,
   StackHeaderToolbarMenuItemBaseAndroid,
+  StackHeaderRendererAndroid,
   StackHeaderTypeAndroid,
   StackHeaderToolbarMenuElementOptionsAndroid,
   StackHeaderToolbarMenuGroupAndroid,
@@ -90,13 +91,17 @@ function StackHeaderConfig(
   };
 
   const backButtonIconProps = parseBackButtonIconToNativeProps(backButtonIcon);
-  const scrollFlagProps = resolveScrollFlags(filteredAndroidProps.type, {
-    scrollFlagScroll,
-    scrollFlagEnterAlways,
-    scrollFlagEnterAlwaysCollapsed,
-    scrollFlagExitUntilCollapsed,
-    scrollFlagSnap,
-  });
+  const scrollFlagProps = resolveScrollFlags(
+    filteredAndroidProps.type,
+    filteredAndroidProps.renderer,
+    {
+      scrollFlagScroll,
+      scrollFlagEnterAlways,
+      scrollFlagEnterAlwaysCollapsed,
+      scrollFlagExitUntilCollapsed,
+      scrollFlagSnap,
+    },
+  );
 
   return (
     <StackHeaderConfigAndroidNativeComponent
@@ -209,9 +214,13 @@ const SCROLL_FLAG_DEFAULTS_BY_TYPE: Record<
 
 function resolveScrollFlags(
   type: StackHeaderTypeAndroid | undefined,
+  renderer: StackHeaderRendererAndroid | undefined,
   overrides: Pick<StackHeaderConfigPropsAndroid, keyof ScrollFlagFields>,
 ): ScrollFlagFields {
-  const defaults = SCROLL_FLAG_DEFAULTS_BY_TYPE[type ?? 'small'];
+  const defaults =
+    type === 'medium' && renderer === 'compose'
+      ? COMPOSE_MEDIUM_SCROLL_FLAG_DEFAULTS
+      : SCROLL_FLAG_DEFAULTS_BY_TYPE[type ?? 'small'];
   return {
     scrollFlagScroll: overrides.scrollFlagScroll ?? defaults.scrollFlagScroll,
     scrollFlagEnterAlways:
@@ -225,6 +234,14 @@ function resolveScrollFlags(
     scrollFlagSnap: overrides.scrollFlagSnap ?? defaults.scrollFlagSnap,
   };
 }
+
+const COMPOSE_MEDIUM_SCROLL_FLAG_DEFAULTS: ScrollFlagFields = {
+  scrollFlagScroll: true,
+  scrollFlagEnterAlways: true,
+  scrollFlagEnterAlwaysCollapsed: false,
+  scrollFlagExitUntilCollapsed: false,
+  scrollFlagSnap: false,
+};
 
 function useHeaderConfigRef(forwardedRef: Ref<StackHeaderConfigRef>) {
   const ref =

@@ -16,8 +16,32 @@ internal data class StackHeaderRendererCapabilities(
     val hasToolbarMenuGroupDividers: Boolean = false,
     val hasCustomBackIcon: Boolean = false,
     val hasCustomBackTint: Boolean = false,
-    val hasScrollFlags: Boolean = false,
+    val scrollFlags: StackHeaderScrollFlags = StackHeaderScrollFlags(),
 )
+
+/** The only scroll profile Compose controls in v1 is the official medium enter-always pattern. */
+internal data class StackHeaderScrollFlags(
+    val scroll: Boolean = false,
+    val enterAlways: Boolean = false,
+    val enterAlwaysCollapsed: Boolean = false,
+    val exitUntilCollapsed: Boolean = false,
+    val snap: Boolean = false,
+) {
+    fun areSupportedFor(type: StackHeaderType): Boolean =
+        when (type) {
+            StackHeaderType.SMALL -> !hasAny
+            StackHeaderType.MEDIUM ->
+                scroll &&
+                    enterAlways &&
+                    !enterAlwaysCollapsed &&
+                    !exitUntilCollapsed &&
+                    !snap
+            StackHeaderType.LARGE -> false
+        }
+
+    private val hasAny: Boolean
+        get() = scroll || enterAlways || enterAlwaysCollapsed || exitUntilCollapsed || snap
+}
 
 internal object StackHeaderRendererResolver {
     fun resolve(
@@ -47,7 +71,8 @@ internal object StackHeaderRendererResolver {
             capabilities.hasToolbarMenuGroupDividers -> "toolbar menu group dividers are not supported"
             capabilities.hasCustomBackIcon -> "custom back icons are not supported"
             capabilities.hasCustomBackTint -> "custom back icon tints are not supported"
-            capabilities.hasScrollFlags -> "scroll flags are not supported"
+            !capabilities.scrollFlags.areSupportedFor(capabilities.type) ->
+                "only medium enterAlways scroll flags are supported"
             else -> null
         }
 }
@@ -69,12 +94,14 @@ internal fun StackHeaderConfigurationProviding.resolvedRenderer(): StackHeaderRe
                 backButtonTintColorNormal != null ||
                     backButtonTintColorPressed != null ||
                     backButtonTintColorFocused != null,
-            hasScrollFlags =
-                scrollFlagScroll ||
-                    scrollFlagEnterAlways ||
-                    scrollFlagEnterAlwaysCollapsed ||
-                    scrollFlagExitUntilCollapsed ||
-                    scrollFlagSnap,
+            scrollFlags =
+                StackHeaderScrollFlags(
+                    scroll = scrollFlagScroll,
+                    enterAlways = scrollFlagEnterAlways,
+                    enterAlwaysCollapsed = scrollFlagEnterAlwaysCollapsed,
+                    exitUntilCollapsed = scrollFlagExitUntilCollapsed,
+                    snap = scrollFlagSnap,
+                ),
         )
     val reason =
         StackHeaderRendererResolver.unsupportedReason(capabilities)
