@@ -3,6 +3,8 @@ package com.swmansion.rnscreens.gamma.stack.header
 import android.view.View
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StackHeaderComposeActivityTest {
@@ -54,6 +56,20 @@ class StackHeaderComposeActivityTest {
         assertEquals(
             View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,
             StackHeaderComposeProviderActivity.ACTIVE.accessibilityImportance,
+        )
+    }
+
+    @Test
+    fun `only AndroidComposeView owns Compose virtual semantics`() {
+        assertTrue(
+            StackHeaderComposeSemanticsProvider.isProviderClassName(
+                "androidx.compose.ui.platform.AndroidComposeView",
+            ),
+        )
+        assertFalse(
+            StackHeaderComposeSemanticsProvider.isProviderClassName(
+                "androidx.compose.ui.platform.ComposeView",
+            ),
         )
     }
 

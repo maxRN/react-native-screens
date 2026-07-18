@@ -9,7 +9,6 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.appcompat.view.ContextThemeWrapper
-import androidx.compose.ui.platform.ComposeView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException
 import com.google.android.material.R
@@ -185,8 +184,9 @@ internal class StackHeaderCoordinatorLayout(
 
     private var appBarLayout: StackHeaderAppBarLayout? = null
     private var isScreenActive = false
-    private val composeProviderAccessibilityImportance = WeakHashMap<ComposeView, Int>()
+    private val composeProviderAccessibilityImportance = WeakHashMap<View, Int>()
     private var isComposeProviderListenerRegistered = false
+    private var hasLoggedComposeProviderScan = false
     private val composeProviderLayoutListener =
         ViewTreeObserver.OnGlobalLayoutListener {
             if (!isScreenActive) {
@@ -345,10 +345,10 @@ internal class StackHeaderCoordinatorLayout(
     }
 
     /**
-     * Compose exposes its semantics through virtual children of each [ComposeView]. Android's
-     * ancestor `NO_HIDE_DESCENDANTS` flags do not prune that provider, so the provider itself
-     * must receive the inactive state. Preserve its original value so React/Expo ownership is
-     * restored when this fragment returns to the top.
+     * Compose exposes its semantics through virtual children of AndroidComposeView, the internal
+     * child hosted by ComposeView. Android's ancestor `NO_HIDE_DESCENDANTS` flags do not prune
+     * that provider, so the provider itself must receive the inactive state. Preserve its original
+     * value so React/Expo ownership is restored when this fragment returns to the top.
      */
     private fun applyComposeProviderAccessibility() {
         if (isScreenActive) {
@@ -356,15 +356,27 @@ internal class StackHeaderCoordinatorLayout(
                 provider.importantForAccessibility = importance
             }
             composeProviderAccessibilityImportance.clear()
+            hasLoggedComposeProviderScan = false
             return
         }
 
         val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
-        visitComposeProviders(this) { provider ->
+        var newlyIsolatedProviderCount = 0
+        visitComposeSemanticsProviders(this) { provider ->
             if (composeProviderAccessibilityImportance[provider] == null) {
                 composeProviderAccessibilityImportance[provider] = provider.importantForAccessibility
+                newlyIsolatedProviderCount += 1
             }
             provider.importantForAccessibility = inactiveImportance
+        }
+        if (BuildConfig.DEBUG && (!hasLoggedComposeProviderScan || newlyIsolatedProviderCount > 0)) {
+            Log.d(
+                TAG,
+                "[RNScreens] Compose semantics scan found " +
+                    "${composeProviderAccessibilityImportance.size} provider(s); isolated " +
+                    "$newlyIsolatedProviderCount new provider(s).",
+            )
+            hasLoggedComposeProviderScan = true
         }
     }
 
@@ -382,16 +394,16 @@ internal class StackHeaderCoordinatorLayout(
         }
     }
 
-    private fun visitComposeProviders(
+    private fun visitComposeSemanticsProviders(
         view: View,
-        onComposeProvider: (ComposeView) -> Unit,
+        onComposeProvider: (View) -> Unit,
     ) {
-        if (view is ComposeView) {
+        if (StackHeaderComposeSemanticsProvider.isProviderClassName(view.javaClass.name)) {
             onComposeProvider(view)
         }
         (view as? ViewGroup)?.let { viewGroup ->
             for (index in 0 until viewGroup.childCount) {
-                visitComposeProviders(viewGroup.getChildAt(index), onComposeProvider)
+                visitComposeSemanticsProviders(viewGroup.getChildAt(index), onComposeProvider)
             }
         }
     }
@@ -616,6 +628,14 @@ internal enum class StackHeaderComposeProviderActivity(
 ) {
     ACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO),
     INACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS),
+}
+
+/** AndroidComposeView owns Jetpack Compose's virtual accessibility-node provider. */
+internal object StackHeaderComposeSemanticsProvider {
+    // Matches the AndroidX Compose 1.10.6 implementation pinned by this module's Gradle defaults.
+    private const val ANDROID_COMPOSE_VIEW_CLASS_NAME = "androidx.compose.ui.platform.AndroidComposeView"
+
+    fun isProviderClassName(className: String): Boolean = className == ANDROID_COMPOSE_VIEW_CLASS_NAME
 }
 
 internal data class StackHeaderScreenAccessibilityTargets(
