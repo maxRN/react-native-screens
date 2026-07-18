@@ -10,6 +10,8 @@ import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException
 import com.google.android.material.R
 import com.google.android.material.appbar.AppBarLayout
@@ -184,12 +186,23 @@ internal class StackHeaderCoordinatorLayout(
 
     private var appBarLayout: StackHeaderAppBarLayout? = null
     private var isScreenActive = false
-    private val composeProviderAccessibilityImportance = WeakHashMap<View, Int>()
-    private var isComposeProviderListenerRegistered = false
+    private val composeProviderAccessibilityState = WeakHashMap<View, StackHeaderComposeProviderAccessibilityState>()
     private var hasLoggedComposeProviderScan = false
+    private var isComposeProviderListenerRegistered = false
+    private var isComposeProviderLayoutListenerRegistered = false
+    private val composeProviderPreDrawListener =
+        ViewTreeObserver.OnPreDrawListener {
+            if (!isScreenActive) {
+                reconcileTrackedComposeProviderAccessibility()
+            }
+            true
+        }
     private val composeProviderLayoutListener =
         ViewTreeObserver.OnGlobalLayoutListener {
             if (!isScreenActive) {
+                // First clear any delegate that Compose reinstalled without replacing the view,
+                // then discover providers introduced by a later Fabric mount.
+                reconcileTrackedComposeProviderAccessibility()
                 applyComposeProviderAccessibility()
             }
         }
@@ -340,6 +353,7 @@ internal class StackHeaderCoordinatorLayout(
         stackScreen.importantForAccessibility = accessibilityTargets.stackScreenImportance
         stackScreenWrapper.importantForAccessibility = accessibilityTargets.wrapperImportance
         applyComposeProviderAccessibility()
+        updateComposeProviderPreDrawListener()
         updateComposeProviderLayoutListener()
         appBarLayout?.let(::applyScreenActivity)
     }
@@ -350,48 +364,137 @@ internal class StackHeaderCoordinatorLayout(
      * that provider, so the provider itself must receive the inactive state. Preserve its original
      * value so React/Expo ownership is restored when this fragment returns to the top.
      */
-    private fun applyComposeProviderAccessibility() {
+    private fun applyComposeProviderAccessibility(): Int {
         if (isScreenActive) {
-            composeProviderAccessibilityImportance.entries.toList().forEach { (provider, importance) ->
-                provider.importantForAccessibility = importance
+            composeProviderAccessibilityState.entries.toList().forEach { (provider, state) ->
+                provider.importantForAccessibility = state.importance
+                ViewCompat.setAccessibilityDelegate(provider, state.delegate)
             }
-            composeProviderAccessibilityImportance.clear()
+            composeProviderAccessibilityState.clear()
             hasLoggedComposeProviderScan = false
-            return
+            removeComposeProviderPreDrawListener()
+            return 0
         }
 
         val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
         var newlyIsolatedProviderCount = 0
+        var refreshedDelegateCount = 0
         visitComposeSemanticsProviders(this) { provider ->
-            if (composeProviderAccessibilityImportance[provider] == null) {
-                composeProviderAccessibilityImportance[provider] = provider.importantForAccessibility
+            val currentImportance = provider.importantForAccessibility
+            val currentDelegate = ViewCompat.getAccessibilityDelegate(provider)
+            val previousState = composeProviderAccessibilityState[provider]
+            if (previousState == null && !composeProviderAccessibilityState.containsKey(provider)) {
+                composeProviderAccessibilityState[provider] =
+                    StackHeaderComposeProviderAccessibilityState(
+                        importance = currentImportance,
+                        delegate = currentDelegate,
+                    )
                 newlyIsolatedProviderCount += 1
+            } else if (previousState != null && currentDelegate != null) {
+                // Compose can reinstall its delegate while Fabric applies a later transaction.
+                // Retain that newest delegate so reactivation restores Compose's current owner.
+                composeProviderAccessibilityState[provider] =
+                    previousState.copy(
+                        importance =
+                            if (currentImportance == inactiveImportance) {
+                                previousState.importance
+                            } else {
+                                currentImportance
+                            },
+                        delegate = currentDelegate,
+                    )
+                refreshedDelegateCount += 1
             }
             provider.importantForAccessibility = inactiveImportance
+            // AndroidComposeView's delegate owns the virtual node provider. Reapply this on every
+            // reconciliation in case Compose installs it again while Fabric finishes mounting.
+            ViewCompat.setAccessibilityDelegate(provider, null)
         }
-        if (BuildConfig.DEBUG && (!hasLoggedComposeProviderScan || newlyIsolatedProviderCount > 0)) {
+        if (
+            BuildConfig.DEBUG &&
+            (!hasLoggedComposeProviderScan || newlyIsolatedProviderCount > 0 || refreshedDelegateCount > 0)
+        ) {
             Log.d(
                 TAG,
                 "[RNScreens] Compose semantics scan found " +
-                    "${composeProviderAccessibilityImportance.size} provider(s); isolated " +
-                    "$newlyIsolatedProviderCount new provider(s).",
+                    "${composeProviderAccessibilityState.size} provider(s); isolated " +
+                    "$newlyIsolatedProviderCount new provider(s), refreshed $refreshedDelegateCount delegate(s), " +
+                    "and cleared their delegates.",
             )
             hasLoggedComposeProviderScan = true
         }
+        return newlyIsolatedProviderCount
+    }
+
+    /**
+     * Compose can reinstall a provider delegate without changing bounds. Checking the tracked
+     * providers on pre-draw keeps the inactive boundary durable without repeatedly walking the
+     * entire retained fragment on frames belonging to another screen.
+     */
+    private fun reconcileTrackedComposeProviderAccessibility() {
+        val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
+        var refreshedDelegateCount = 0
+        composeProviderAccessibilityState.entries.toList().forEach { (provider, previousState) ->
+            val currentImportance = provider.importantForAccessibility
+            val currentDelegate = ViewCompat.getAccessibilityDelegate(provider)
+            if (currentDelegate != null) {
+                composeProviderAccessibilityState[provider] =
+                    previousState.copy(
+                        importance =
+                            if (currentImportance == inactiveImportance) {
+                                previousState.importance
+                            } else {
+                                currentImportance
+                            },
+                        delegate = currentDelegate,
+                    )
+                refreshedDelegateCount += 1
+            }
+            provider.importantForAccessibility = inactiveImportance
+            ViewCompat.setAccessibilityDelegate(provider, null)
+        }
+        if (refreshedDelegateCount > 0 && BuildConfig.DEBUG) {
+            Log.d(
+                TAG,
+                "[RNScreens] Refreshed $refreshedDelegateCount inactive Compose semantics delegate(s).",
+            )
+        }
+    }
+
+    private fun updateComposeProviderPreDrawListener() {
+        if (!isAttachedToWindow) return
+
+        if (isScreenActive) {
+            removeComposeProviderPreDrawListener()
+        } else if (!isComposeProviderListenerRegistered) {
+            viewTreeObserver.addOnPreDrawListener(composeProviderPreDrawListener)
+            isComposeProviderListenerRegistered = true
+        }
+    }
+
+    private fun removeComposeProviderPreDrawListener() {
+        if (isComposeProviderListenerRegistered && viewTreeObserver.isAlive) {
+            viewTreeObserver.removeOnPreDrawListener(composeProviderPreDrawListener)
+        }
+        isComposeProviderListenerRegistered = false
     }
 
     private fun updateComposeProviderLayoutListener() {
         if (!isAttachedToWindow) return
 
         if (isScreenActive) {
-            if (isComposeProviderListenerRegistered && viewTreeObserver.isAlive) {
-                viewTreeObserver.removeOnGlobalLayoutListener(composeProviderLayoutListener)
-            }
-            isComposeProviderListenerRegistered = false
-        } else if (!isComposeProviderListenerRegistered) {
+            removeComposeProviderLayoutListener()
+        } else if (!isComposeProviderLayoutListenerRegistered) {
             viewTreeObserver.addOnGlobalLayoutListener(composeProviderLayoutListener)
-            isComposeProviderListenerRegistered = true
+            isComposeProviderLayoutListenerRegistered = true
         }
+    }
+
+    private fun removeComposeProviderLayoutListener() {
+        if (isComposeProviderLayoutListenerRegistered && viewTreeObserver.isAlive) {
+            viewTreeObserver.removeOnGlobalLayoutListener(composeProviderLayoutListener)
+        }
+        isComposeProviderLayoutListenerRegistered = false
     }
 
     private fun visitComposeSemanticsProviders(
@@ -411,14 +514,13 @@ internal class StackHeaderCoordinatorLayout(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         applyComposeProviderAccessibility()
+        updateComposeProviderPreDrawListener()
         updateComposeProviderLayoutListener()
     }
 
     override fun onDetachedFromWindow() {
-        if (isComposeProviderListenerRegistered && viewTreeObserver.isAlive) {
-            viewTreeObserver.removeOnGlobalLayoutListener(composeProviderLayoutListener)
-        }
-        isComposeProviderListenerRegistered = false
+        removeComposeProviderPreDrawListener()
+        removeComposeProviderLayoutListener()
         super.onDetachedFromWindow()
     }
 
@@ -552,6 +654,9 @@ internal class StackHeaderCoordinatorLayout(
     // region Teardown
 
     internal fun tearDown() {
+        removeComposeProviderPreDrawListener()
+        removeComposeProviderLayoutListener()
+        composeProviderAccessibilityState.clear()
         removeHeader()
 
         stackScreenWrapper.removeView(stackScreen)
@@ -630,12 +735,19 @@ internal enum class StackHeaderComposeProviderActivity(
     INACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS),
 }
 
+internal data class StackHeaderComposeProviderAccessibilityState(
+    val importance: Int,
+    val delegate: AccessibilityDelegateCompat?,
+)
+
 /** AndroidComposeView owns Jetpack Compose's virtual accessibility-node provider. */
 internal object StackHeaderComposeSemanticsProvider {
     // Matches the AndroidX Compose 1.10.6 implementation pinned by this module's Gradle defaults.
     private const val ANDROID_COMPOSE_VIEW_CLASS_NAME = "androidx.compose.ui.platform.AndroidComposeView"
 
     fun isProviderClassName(className: String): Boolean = className == ANDROID_COMPOSE_VIEW_CLASS_NAME
+
+    fun shouldClearDelegate(isActive: Boolean): Boolean = !isActive
 }
 
 internal data class StackHeaderScreenAccessibilityTargets(

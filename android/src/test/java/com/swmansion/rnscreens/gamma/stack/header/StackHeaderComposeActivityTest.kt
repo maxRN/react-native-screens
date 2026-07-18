@@ -74,6 +74,12 @@ class StackHeaderComposeActivityTest {
     }
 
     @Test
+    fun `inactive Compose semantics provider clears its delegate`() {
+        assertTrue(StackHeaderComposeSemanticsProvider.shouldClearDelegate(isActive = false))
+        assertFalse(StackHeaderComposeSemanticsProvider.shouldClearDelegate(isActive = true))
+    }
+
+    @Test
     fun `inactive View fallback app bar remains visible but is hidden from accessibility`() {
         val activity =
             StackHeaderAppBarActivity.resolve(
