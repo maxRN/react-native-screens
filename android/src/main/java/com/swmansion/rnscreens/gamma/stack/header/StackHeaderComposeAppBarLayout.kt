@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Build
-import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -472,7 +471,7 @@ internal object StackHeaderMediumAppBarContract {
  * an entry, while inactive retained screens are excluded from both sides of the handoff.
  */
 internal object StackHeaderComposeAppBarConfigurationRestore {
-    private const val MAX_AGE_MS = 30_000L
+    private const val MAX_AGE_NANOS = 30_000_000_000L
 
     data class Fingerprint(
         val type: StackHeaderType,
@@ -486,7 +485,7 @@ internal object StackHeaderComposeAppBarConfigurationRestore {
         val fingerprint: Fingerprint,
         val coordinatorOffsetPx: Int,
         val targetUiMode: Int,
-        val savedAtMs: Long,
+        val savedAtNanos: Long,
     )
 
     private var pending: Pending? = null
@@ -505,7 +504,7 @@ internal object StackHeaderComposeAppBarConfigurationRestore {
                 fingerprint = fingerprint,
                 coordinatorOffsetPx = coordinatorOffsetPx,
                 targetUiMode = targetUiMode,
-                savedAtMs = SystemClock.uptimeMillis(),
+                savedAtNanos = System.nanoTime(),
             )
     }
 
@@ -513,10 +512,9 @@ internal object StackHeaderComposeAppBarConfigurationRestore {
         fingerprint: Fingerprint,
         targetUiMode: Int,
     ): Int? {
-        val now = SystemClock.uptimeMillis()
         val candidate = pending ?: return null
         pending = null
-        if (now - candidate.savedAtMs > MAX_AGE_MS) return null
+        if (System.nanoTime() - candidate.savedAtNanos > MAX_AGE_NANOS) return null
         if (candidate.targetUiMode != targetUiMode || candidate.fingerprint != fingerprint) return null
         return candidate.coordinatorOffsetPx
     }
