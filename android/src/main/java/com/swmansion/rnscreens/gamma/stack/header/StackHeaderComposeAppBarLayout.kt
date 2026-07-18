@@ -93,7 +93,11 @@ internal class StackHeaderComposeAppBarLayout(
     private var onNavigationIconClick by mutableStateOf<() -> Unit>({})
     private var toolbarMenu by mutableStateOf(StackHeaderToolbarMenuConfig(emptyList(), emptyList()))
     private var onMenuItemClick by mutableStateOf<(String) -> Unit>({})
-    private var mediumTopAppBarState: TopAppBarState? = null
+    // The Compose content recomposes for configuration changes, while this navigation-owned
+    // header instance remains compatible with its screen. Material3's default state is remembered
+    // only by that composition, so own it here instead. A structural header rebuild creates a new
+    // StackHeaderComposeAppBarLayout and deliberately starts with a fresh state.
+    private val mediumTopAppBarState = TopAppBarState(0f, 0f, 0f)
     private var coordinatorOffsetPx = 0
     private var topInsetPx by mutableStateOf(0)
 
@@ -108,7 +112,8 @@ internal class StackHeaderComposeAppBarLayout(
                     } else {
                         if (dark) darkColorScheme() else lightColorScheme()
                     }
-                val mediumScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+                val mediumScrollBehavior =
+                    TopAppBarDefaults.enterAlwaysScrollBehavior(state = mediumTopAppBarState)
                 val mediumWindowInsets =
                     WindowInsets(
                         top = StackHeaderMediumAppBarMetrics.collapsedRowTopPx(topInsetPx),
@@ -116,7 +121,6 @@ internal class StackHeaderComposeAppBarLayout(
 
                 LaunchedEffect(mediumScrollBehavior.state.heightOffsetLimit) {
                     if (type == StackHeaderType.MEDIUM) {
-                        mediumTopAppBarState = mediumScrollBehavior.state
                         synchronizeMediumTopAppBarOffset()
                     }
                 }
@@ -223,14 +227,13 @@ internal class StackHeaderComposeAppBarLayout(
     }
 
     private fun synchronizeMediumTopAppBarOffset() {
-        val state = mediumTopAppBarState ?: return
         // AppBarLayout and Material3 reserve different collapsed heights. Drive Material3 by
         // the native collapse fraction so its expanded and collapsed states land together.
-        state.heightOffset =
+        mediumTopAppBarState.heightOffset =
             StackHeaderMediumAppBarMetrics.composeHeightOffset(
                 coordinatorOffsetPx = coordinatorOffsetPx,
                 appBarTotalScrollRangePx = totalScrollRange,
-                composeHeightOffsetLimitPx = state.heightOffsetLimit,
+                composeHeightOffsetLimitPx = mediumTopAppBarState.heightOffsetLimit,
             )
     }
 
