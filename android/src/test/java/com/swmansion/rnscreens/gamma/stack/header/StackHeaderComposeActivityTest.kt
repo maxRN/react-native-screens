@@ -1,6 +1,7 @@
 package com.swmansion.rnscreens.gamma.stack.header
 
 import android.view.View
+import androidx.core.view.AccessibilityDelegateCompat
 import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -77,6 +78,28 @@ class StackHeaderComposeActivityTest {
     fun `inactive Compose semantics provider clears its delegate`() {
         assertTrue(StackHeaderComposeSemanticsProvider.shouldClearDelegate(isActive = false))
         assertFalse(StackHeaderComposeSemanticsProvider.shouldClearDelegate(isActive = true))
+    }
+
+    @Test
+    fun `only a delegate with a node provider is captured for restoration`() {
+        assertTrue(
+            StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(
+                delegate = AccessibilityDelegateCompat(),
+                hasNodeProvider = true,
+            ),
+        )
+        assertFalse(
+            StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(
+                delegate = AccessibilityDelegateCompat(),
+                hasNodeProvider = false,
+            ),
+        )
+        assertFalse(
+            StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(
+                delegate = null,
+                hasNodeProvider = true,
+            ),
+        )
     }
 
     @Test

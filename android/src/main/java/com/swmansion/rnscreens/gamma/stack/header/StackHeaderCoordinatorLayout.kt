@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewTreeObserver
+import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -342,6 +343,11 @@ internal class StackHeaderCoordinatorLayout(
      * transition surface, but its header and content are removed from the accessibility tree.
      */
     internal fun setScreenActive(isActive: Boolean) {
+        if (isActive) {
+            // Do not let an inactive reconciliation clear a delegate while it is restored.
+            removeComposeProviderPreDrawListener()
+            removeComposeProviderLayoutListener()
+        }
         isScreenActive = isActive
         val accessibilityTargets = StackHeaderScreenAccessibilityTargets.resolve(isActive)
         // CoordinatorLayout exposes itself as a ScrollView accessibility root. It is the retained
@@ -366,44 +372,74 @@ internal class StackHeaderCoordinatorLayout(
      */
     private fun applyComposeProviderAccessibility(): Int {
         if (isScreenActive) {
+            removeComposeProviderPreDrawListener()
+            removeComposeProviderLayoutListener()
+            var activeProviderCount = 0
             composeProviderAccessibilityState.entries.toList().forEach { (provider, state) ->
                 provider.importantForAccessibility = state.importance
                 ViewCompat.setAccessibilityDelegate(provider, state.delegate)
+                provider.invalidate()
+                ViewCompat.notifyViewAccessibilityStateChangedIfNeeded(
+                    provider,
+                    AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE,
+                )
+                val hasNodeProvider = ViewCompat.getAccessibilityNodeProvider(provider) != null
+                if (hasNodeProvider) {
+                    activeProviderCount += 1
+                }
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        TAG,
+                        "[RNScreens] Restored Compose semantics provider " +
+                            "delegate=${StackHeaderComposeSemanticsProvider.describeDelegate(state.delegate)}, " +
+                            "nodeProvider=$hasNodeProvider.",
+                    )
+                }
+            }
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    TAG,
+                    "[RNScreens] Restored $activeProviderCount/${composeProviderAccessibilityState.size} " +
+                        "Compose semantics provider(s).",
+                )
             }
             composeProviderAccessibilityState.clear()
             hasLoggedComposeProviderScan = false
-            removeComposeProviderPreDrawListener()
             return 0
         }
 
         val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
         var newlyIsolatedProviderCount = 0
-        var refreshedDelegateCount = 0
+        var capturedDelegateCount = 0
         visitComposeSemanticsProviders(this) { provider ->
             val currentImportance = provider.importantForAccessibility
             val currentDelegate = ViewCompat.getAccessibilityDelegate(provider)
+            val hasNodeProvider = ViewCompat.getAccessibilityNodeProvider(provider) != null
             val previousState = composeProviderAccessibilityState[provider]
             if (previousState == null && !composeProviderAccessibilityState.containsKey(provider)) {
                 composeProviderAccessibilityState[provider] =
                     StackHeaderComposeProviderAccessibilityState(
                         importance = currentImportance,
-                        delegate = currentDelegate,
+                        delegate =
+                            if (StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(currentDelegate, hasNodeProvider)) {
+                                capturedDelegateCount += 1
+                                currentDelegate
+                            } else {
+                                null
+                            },
                     )
                 newlyIsolatedProviderCount += 1
-            } else if (previousState != null && currentDelegate != null) {
-                // Compose can reinstall its delegate while Fabric applies a later transaction.
-                // Retain that newest delegate so reactivation restores Compose's current owner.
+            } else if (
+                previousState?.delegate == null &&
+                StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(currentDelegate, hasNodeProvider)
+            ) {
+                // Keep the first delegate that actually exposes Compose's node provider. Later
+                // inactive re-installations may be temporary wrappers and must not replace it.
                 composeProviderAccessibilityState[provider] =
-                    previousState.copy(
-                        importance =
-                            if (currentImportance == inactiveImportance) {
-                                previousState.importance
-                            } else {
-                                currentImportance
-                            },
+                    checkNotNull(previousState).copy(
                         delegate = currentDelegate,
                     )
-                refreshedDelegateCount += 1
+                capturedDelegateCount += 1
             }
             provider.importantForAccessibility = inactiveImportance
             // AndroidComposeView's delegate owns the virtual node provider. Reapply this on every
@@ -412,13 +448,13 @@ internal class StackHeaderCoordinatorLayout(
         }
         if (
             BuildConfig.DEBUG &&
-            (!hasLoggedComposeProviderScan || newlyIsolatedProviderCount > 0 || refreshedDelegateCount > 0)
+            (!hasLoggedComposeProviderScan || newlyIsolatedProviderCount > 0 || capturedDelegateCount > 0)
         ) {
             Log.d(
                 TAG,
                 "[RNScreens] Compose semantics scan found " +
                     "${composeProviderAccessibilityState.size} provider(s); isolated " +
-                    "$newlyIsolatedProviderCount new provider(s), refreshed $refreshedDelegateCount delegate(s), " +
+                    "$newlyIsolatedProviderCount new provider(s), captured $capturedDelegateCount valid delegate(s), " +
                     "and cleared their delegates.",
             )
             hasLoggedComposeProviderScan = true
@@ -433,11 +469,15 @@ internal class StackHeaderCoordinatorLayout(
      */
     private fun reconcileTrackedComposeProviderAccessibility() {
         val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
-        var refreshedDelegateCount = 0
+        var capturedDelegateCount = 0
         composeProviderAccessibilityState.entries.toList().forEach { (provider, previousState) ->
             val currentImportance = provider.importantForAccessibility
             val currentDelegate = ViewCompat.getAccessibilityDelegate(provider)
-            if (currentDelegate != null) {
+            val hasNodeProvider = ViewCompat.getAccessibilityNodeProvider(provider) != null
+            if (
+                previousState.delegate == null &&
+                StackHeaderComposeSemanticsProvider.shouldCaptureDelegate(currentDelegate, hasNodeProvider)
+            ) {
                 composeProviderAccessibilityState[provider] =
                     previousState.copy(
                         importance =
@@ -448,15 +488,15 @@ internal class StackHeaderCoordinatorLayout(
                             },
                         delegate = currentDelegate,
                     )
-                refreshedDelegateCount += 1
+                capturedDelegateCount += 1
             }
             provider.importantForAccessibility = inactiveImportance
             ViewCompat.setAccessibilityDelegate(provider, null)
         }
-        if (refreshedDelegateCount > 0 && BuildConfig.DEBUG) {
+        if (capturedDelegateCount > 0 && BuildConfig.DEBUG) {
             Log.d(
                 TAG,
-                "[RNScreens] Refreshed $refreshedDelegateCount inactive Compose semantics delegate(s).",
+                "[RNScreens] Captured $capturedDelegateCount inactive Compose semantics delegate(s).",
             )
         }
     }
@@ -748,6 +788,14 @@ internal object StackHeaderComposeSemanticsProvider {
     fun isProviderClassName(className: String): Boolean = className == ANDROID_COMPOSE_VIEW_CLASS_NAME
 
     fun shouldClearDelegate(isActive: Boolean): Boolean = !isActive
+
+    fun shouldCaptureDelegate(
+        delegate: AccessibilityDelegateCompat?,
+        hasNodeProvider: Boolean,
+    ): Boolean = delegate != null && hasNodeProvider
+
+    fun describeDelegate(delegate: AccessibilityDelegateCompat?): String =
+        delegate?.let { "${it.javaClass.name}@${System.identityHashCode(it)}" } ?: "null"
 }
 
 internal data class StackHeaderScreenAccessibilityTargets(
