@@ -6,6 +6,7 @@
 package com.swmansion.rnscreens.gamma.stack.header
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup.LayoutParams
@@ -22,6 +23,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Text
@@ -39,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
@@ -396,6 +400,7 @@ private fun composeHeaderAction(
     item: StackHeaderToolbarMenuItemConfig,
     onClick: (String) -> Unit,
 ) {
+    val contentColor = LocalContentColor.current
     IconButton(
         onClick = { onClick(item.id) },
         enabled = !item.disabled,
@@ -407,7 +412,13 @@ private fun composeHeaderAction(
     ) {
         AndroidView(
             factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_INSIDE } },
-            update = { it.setImageDrawable(item.icon) },
+            update = {
+                it.setImageDrawable(item.icon)
+                ImageViewCompat.setImageTintList(
+                    it,
+                    ColorStateList.valueOf(contentColor.toArgb()),
+                )
+            },
             modifier = Modifier.size(24.dp),
         )
     }
