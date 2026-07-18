@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.swmansion.rnscreens.gamma.stack.header.config.StackHeaderType
 
 class StackHeaderComposeAppBarConfigurationRestoreTest {
     @Test
