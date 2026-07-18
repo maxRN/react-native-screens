@@ -32,22 +32,21 @@ void NativeProxy::nativeAddMutationsListener(
   auto uiManager =
       fabricUIManager->getBinding()->getScheduler()->getUIManager();
 
-  if (!screenRemovalListener_) {
-    screenRemovalListener_ =
-        std::make_shared<RNSScreenRemovalListener>([this](int tag) {
-          static const auto method =
-              javaPart_->getClass()->getMethod<void(jint)>(
-                  "notifyScreenRemoved");
-          method(javaPart_, tag);
-        });
-  }
+  auto screenRemovalListener = screenRemovalListener_.getOrCreate([this] {
+    return std::make_shared<RNSScreenRemovalListener>([this](int tag) {
+      static const auto method =
+          javaPart_->getClass()->getMethod<void(jint)>("notifyScreenRemoved");
+      method(javaPart_, tag);
+    });
+  });
 
   cleanupExpiredMountingCoordinators();
 
   uiManager->getShadowTreeRegistry().enumerate(
-      [this](const facebook::react::ShadowTree &shadowTree, bool &stop) {
+      [this, screenRemovalListener](
+          const facebook::react::ShadowTree &shadowTree, bool &stop) {
         if (auto coordinator = shadowTree.getMountingCoordinator()) {
-          addMountingCoordinatorIfNeeded(coordinator);
+          addMountingCoordinatorIfNeeded(coordinator, screenRemovalListener);
         }
       });
 }
@@ -66,7 +65,8 @@ void NativeProxy::cleanupExpiredMountingCoordinators() {
 
 void NativeProxy::addMountingCoordinatorIfNeeded(
     const std::shared_ptr<const facebook::react::MountingCoordinator>
-        &coordinator) {
+        &coordinator,
+    const std::shared_ptr<RNSScreenRemovalListener> &screenRemovalListener) {
   std::lock_guard<std::mutex> lock(coordinatorsMutex_);
 
   bool wasRegistered = std::ranges::any_of(
@@ -79,7 +79,7 @@ void NativeProxy::addMountingCoordinatorIfNeeded(
       });
 
   if (!wasRegistered) {
-    coordinator->setMountingOverrideDelegate(screenRemovalListener_);
+    coordinator->setMountingOverrideDelegate(screenRemovalListener);
     coordinatorsWithMountingOverrides_.push_back(coordinator);
   }
 }
