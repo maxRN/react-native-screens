@@ -379,7 +379,8 @@ internal class StackHeaderCoordinatorLayout(
                 provider.importantForAccessibility = state.importance
                 ViewCompat.setAccessibilityDelegate(provider, state.delegate)
                 provider.invalidate()
-                ViewCompat.notifyViewAccessibilityStateChangedIfNeeded(
+                provider.parent?.notifySubtreeAccessibilityStateChanged(
+                    provider,
                     provider,
                     AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE,
                 )
