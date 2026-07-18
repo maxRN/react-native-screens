@@ -14,6 +14,11 @@ import com.google.android.material.appbar.AppBarLayout
  * (typical actionBarSize ~56dp vs status bar ~24dp).
  */
 internal class StackHeaderAppBarLayoutBehavior : AppBarLayout.Behavior() {
+    /** Restores a retained configuration-change offset after the new app bar has measured. */
+    fun restoreTopAndBottomOffset(offset: Int) {
+        topAndBottomOffset = offset
+    }
+
     override fun onNestedPreScroll(
         coordinatorLayout: CoordinatorLayout,
         child: AppBarLayout,

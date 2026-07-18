@@ -7,7 +7,9 @@ package com.swmansion.rnscreens.gamma.stack.header
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -54,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.core.widget.ImageViewCompat
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
@@ -99,6 +102,9 @@ internal class StackHeaderComposeAppBarLayout(
     // StackHeaderComposeAppBarLayout and deliberately starts with a fresh state.
     private val mediumTopAppBarState = TopAppBarState(0f, 0f, 0f)
     private var coordinatorOffsetPx = 0
+    private var pendingCoordinatorOffsetRestorePx: Int? = null
+    private var pendingConfigurationRestoreFingerprint: StackHeaderComposeAppBarConfigurationRestore.Fingerprint? = null
+    private var isScreenActive = false
     private var topInsetPx by mutableStateOf(0)
 
     private val composeView =
@@ -170,6 +176,7 @@ internal class StackHeaderComposeAppBarLayout(
         addView(appBarContent)
         addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             synchronizeMediumTopAppBarOffset()
+            restoreCoordinatorOffsetIfReady()
         }
     }
 
@@ -183,6 +190,36 @@ internal class StackHeaderComposeAppBarLayout(
         toolbarMenu = config.toolbarMenu
         this.onMenuItemClick = onMenuItemClick
         updateNavigation(config, canNavigateBack, onNavigationIconClick)
+        pendingConfigurationRestoreFingerprint = configurationFingerprint()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        // Fabric recreates Stack fragments for a uiMode change. The AppBarLayout offset is not
+        // part of React's restored state, so hand it to only the structurally compatible header
+        // created by that same configuration pass.
+        if (isScreenActive && type == StackHeaderType.MEDIUM) {
+            StackHeaderComposeAppBarConfigurationRestore.save(
+                fingerprint = configurationFingerprint(),
+                coordinatorOffsetPx = coordinatorOffsetPx,
+                targetUiMode = newConfig.uiMode,
+            )
+        }
+        super.onConfigurationChanged(newConfig)
+    }
+
+    fun setScreenActive(isActive: Boolean) {
+        isScreenActive = isActive
+        if (!isActive) return
+
+        pendingConfigurationRestoreFingerprint?.let { fingerprint ->
+            pendingCoordinatorOffsetRestorePx =
+                StackHeaderComposeAppBarConfigurationRestore.consume(
+                    fingerprint = fingerprint,
+                    targetUiMode = resources.configuration.uiMode,
+                )
+            restoreCoordinatorOffsetIfReady()
+        }
+        pendingConfigurationRestoreFingerprint = null
     }
 
     fun applyTitle(title: String) {
@@ -236,6 +273,36 @@ internal class StackHeaderComposeAppBarLayout(
                 composeHeightOffsetLimitPx = mediumTopAppBarState.heightOffsetLimit,
             )
     }
+
+    private fun restoreCoordinatorOffsetIfReady() {
+        val pendingOffset = pendingCoordinatorOffsetRestorePx ?: return
+        if (type != StackHeaderType.MEDIUM || totalScrollRange <= 0) return
+
+        val behavior =
+            (layoutParams as? CoordinatorLayout.LayoutParams)?.behavior as? StackHeaderAppBarLayoutBehavior
+                ?: return
+        pendingCoordinatorOffsetRestorePx = null
+        val restoredOffset = pendingOffset.coerceIn(-totalScrollRange, 0)
+        behavior.restoreTopAndBottomOffset(restoredOffset)
+        onCoordinatorOffsetChanged(restoredOffset)
+        parent?.requestLayout()
+    }
+
+    private fun configurationFingerprint(): StackHeaderComposeAppBarConfigurationRestore.Fingerprint =
+        StackHeaderComposeAppBarConfigurationRestore.Fingerprint(
+            type = type,
+            title = title,
+            hasLeadingView = leadingView != null,
+            showsUpButton = showUpButton,
+            actionLayout =
+                toolbarMenu.children.joinToString(separator = "|") { element ->
+                    when (element) {
+                        is StackHeaderToolbarMenuElementConfig.MenuItem ->
+                            "item:${element.item.id}:${element.item.showAsAction}:${element.item.hidden}"
+                        is StackHeaderToolbarMenuElementConfig.Submenu -> "submenu"
+                    }
+                },
+        )
 
     @androidx.compose.runtime.Composable
     private fun titleContent() {
@@ -396,6 +463,63 @@ internal object StackHeaderMediumAppBarContract {
         AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
             AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS or
             AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED
+}
+
+/**
+ * A uiMode change can replace the Fabric Stack fragment before React remounts its compatible
+ * screen. The active header saves its own fingerprinted offset for the target configuration; only
+ * the coordinator-selected active replacement can consume it once. Normal navigation never saves
+ * an entry, while inactive retained screens are excluded from both sides of the handoff.
+ */
+internal object StackHeaderComposeAppBarConfigurationRestore {
+    private const val MAX_AGE_MS = 30_000L
+
+    data class Fingerprint(
+        val type: StackHeaderType,
+        val title: String,
+        val hasLeadingView: Boolean,
+        val showsUpButton: Boolean,
+        val actionLayout: String,
+    )
+
+    private data class Pending(
+        val fingerprint: Fingerprint,
+        val coordinatorOffsetPx: Int,
+        val targetUiMode: Int,
+        val savedAtMs: Long,
+    )
+
+    private var pending: Pending? = null
+
+    fun save(
+        fingerprint: Fingerprint,
+        coordinatorOffsetPx: Int,
+        targetUiMode: Int,
+    ) {
+        if (coordinatorOffsetPx >= 0) {
+            pending = null
+            return
+        }
+        pending =
+            Pending(
+                fingerprint = fingerprint,
+                coordinatorOffsetPx = coordinatorOffsetPx,
+                targetUiMode = targetUiMode,
+                savedAtMs = SystemClock.uptimeMillis(),
+            )
+    }
+
+    fun consume(
+        fingerprint: Fingerprint,
+        targetUiMode: Int,
+    ): Int? {
+        val now = SystemClock.uptimeMillis()
+        val candidate = pending ?: return null
+        pending = null
+        if (now - candidate.savedAtMs > MAX_AGE_MS) return null
+        if (candidate.targetUiMode != targetUiMode || candidate.fingerprint != fingerprint) return null
+        return candidate.coordinatorOffsetPx
+    }
 }
 
 @androidx.compose.runtime.Composable

@@ -569,6 +569,7 @@ internal class StackHeaderCoordinatorLayout(
         val activity = StackHeaderAppBarActivity.resolve(appBar.renderer, isScreenActive)
         appBar.importantForAccessibility = activity.accessibilityImportance
         if (appBar.renderer == StackHeaderRenderer.COMPOSE) {
+            (appBar as StackHeaderComposeAppBarLayout).setScreenActive(isScreenActive)
             appBar.visibility = activity.viewVisibility
         }
     }
