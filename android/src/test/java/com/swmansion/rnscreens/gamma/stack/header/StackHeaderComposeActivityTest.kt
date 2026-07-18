@@ -46,6 +46,18 @@ class StackHeaderComposeActivityTest {
     }
 
     @Test
+    fun `inactive Compose providers hide their virtual semantics without changing visibility`() {
+        assertEquals(
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+            StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance,
+        )
+        assertEquals(
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,
+            StackHeaderComposeProviderActivity.ACTIVE.accessibilityImportance,
+        )
+    }
+
+    @Test
     fun `inactive View fallback app bar remains visible but is hidden from accessibility`() {
         val activity =
             StackHeaderAppBarActivity.resolve(

@@ -4,9 +4,12 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.appcompat.view.ContextThemeWrapper
+import androidx.compose.ui.platform.ComposeView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException
 import com.google.android.material.R
@@ -24,6 +27,7 @@ import com.swmansion.rnscreens.gamma.stack.header.subview.StackHeaderSubviewProv
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuElementOptions
 import com.swmansion.rnscreens.gamma.stack.header.toolbar.StackHeaderToolbarMenuGroupMetadata
 import com.swmansion.rnscreens.gamma.stack.screen.StackScreen
+import java.util.WeakHashMap
 
 @SuppressLint("ViewConstructor")
 internal class StackHeaderCoordinatorLayout(
@@ -181,6 +185,14 @@ internal class StackHeaderCoordinatorLayout(
 
     private var appBarLayout: StackHeaderAppBarLayout? = null
     private var isScreenActive = false
+    private val composeProviderAccessibilityImportance = WeakHashMap<ComposeView, Int>()
+    private var isComposeProviderListenerRegistered = false
+    private val composeProviderLayoutListener =
+        ViewTreeObserver.OnGlobalLayoutListener {
+            if (!isScreenActive) {
+                applyComposeProviderAccessibility()
+            }
+        }
 
     private var toolbarMenuForwardIdMap = emptyMap<String, Int>()
     private var toolbarMenuGroupMetadata = StackHeaderToolbarMenuGroupMetadata.EMPTY
@@ -327,7 +339,75 @@ internal class StackHeaderCoordinatorLayout(
         // fragment has resigned its top position.
         stackScreen.importantForAccessibility = accessibilityTargets.stackScreenImportance
         stackScreenWrapper.importantForAccessibility = accessibilityTargets.wrapperImportance
+        applyComposeProviderAccessibility()
+        updateComposeProviderLayoutListener()
         appBarLayout?.let(::applyScreenActivity)
+    }
+
+    /**
+     * Compose exposes its semantics through virtual children of each [ComposeView]. Android's
+     * ancestor `NO_HIDE_DESCENDANTS` flags do not prune that provider, so the provider itself
+     * must receive the inactive state. Preserve its original value so React/Expo ownership is
+     * restored when this fragment returns to the top.
+     */
+    private fun applyComposeProviderAccessibility() {
+        if (isScreenActive) {
+            composeProviderAccessibilityImportance.entries.toList().forEach { (provider, importance) ->
+                provider.importantForAccessibility = importance
+            }
+            composeProviderAccessibilityImportance.clear()
+            return
+        }
+
+        val inactiveImportance = StackHeaderComposeProviderActivity.INACTIVE.accessibilityImportance
+        visitComposeProviders(this) { provider ->
+            if (composeProviderAccessibilityImportance[provider] == null) {
+                composeProviderAccessibilityImportance[provider] = provider.importantForAccessibility
+            }
+            provider.importantForAccessibility = inactiveImportance
+        }
+    }
+
+    private fun updateComposeProviderLayoutListener() {
+        if (!isAttachedToWindow) return
+
+        if (isScreenActive) {
+            if (isComposeProviderListenerRegistered && viewTreeObserver.isAlive) {
+                viewTreeObserver.removeOnGlobalLayoutListener(composeProviderLayoutListener)
+            }
+            isComposeProviderListenerRegistered = false
+        } else if (!isComposeProviderListenerRegistered) {
+            viewTreeObserver.addOnGlobalLayoutListener(composeProviderLayoutListener)
+            isComposeProviderListenerRegistered = true
+        }
+    }
+
+    private fun visitComposeProviders(
+        view: View,
+        onComposeProvider: (ComposeView) -> Unit,
+    ) {
+        if (view is ComposeView) {
+            onComposeProvider(view)
+        }
+        (view as? ViewGroup)?.let { viewGroup ->
+            for (index in 0 until viewGroup.childCount) {
+                visitComposeProviders(viewGroup.getChildAt(index), onComposeProvider)
+            }
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        applyComposeProviderAccessibility()
+        updateComposeProviderLayoutListener()
+    }
+
+    override fun onDetachedFromWindow() {
+        if (isComposeProviderListenerRegistered && viewTreeObserver.isAlive) {
+            viewTreeObserver.removeOnGlobalLayoutListener(composeProviderLayoutListener)
+        }
+        isComposeProviderListenerRegistered = false
+        super.onDetachedFromWindow()
     }
 
     private fun applyScreenActivity(appBar: StackHeaderAppBarLayout) {
@@ -529,6 +609,13 @@ internal enum class StackHeaderScreenActivity(
     companion object {
         fun resolve(isActive: Boolean): StackHeaderScreenActivity = if (isActive) ACTIVE else INACTIVE
     }
+}
+
+internal enum class StackHeaderComposeProviderActivity(
+    val accessibilityImportance: Int,
+) {
+    ACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO),
+    INACTIVE(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS),
 }
 
 internal data class StackHeaderScreenAccessibilityTargets(
